@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning experiments for multiagent environments")
     # Environment
-    parser.add_argument("--scenario", type=str, default="simple_spread", help="name of the scenario script")
+    parser.add_argument("--scenario", type=str, default="simple_spread_way1", help="name of the scenario script")
     parser.add_argument("--max-episode-len", type=int, default=25, help="maximum episode length")
     parser.add_argument("--num-episodes", type=int, default=3000, help="number of episodes")
     parser.add_argument("--num-adversaries", type=int, default=0, help="number of adversaries")
@@ -66,17 +66,24 @@ def make_env(scenario_name, arglist, benchmark=False):
 
 def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     trainers = []
+    comm_trainers = []
     model = mlp_model
     trainer = MADDPGAgentTrainer
     for i in range(num_adversaries):
         trainers.append(trainer(
-            "agent_%d" % i, model, obs_shape_n, env.action_space, i, arglist,
+            "agent_%d" % i, model, obs_shape_n, env.physical_action_space, i, arglist,
             local_q_func=(arglist.adv_policy=='ddpg')))
+        comm_trainers.append(trainer(
+            "agent_%d_comm" % i, model, obs_shape_n, env.comm_action_space, i, arglist,
+            local_q_func=(arglist.adv_policy == 'ddpg')))
     for i in range(num_adversaries, env.n):
         trainers.append(trainer(
-            "agent_%d" % i, model, obs_shape_n, env.action_space, i, arglist,
-            local_q_func=(arglist.good_policy=='ddpg')))
-    return trainers
+            "agent_%d" % i, model, obs_shape_n, env.physical_action_space, i, arglist,
+            local_q_func=(arglist.adv_policy == 'ddpg')))
+        comm_trainers.append(trainer(
+            "agent_%d_comm" % i, model, obs_shape_n, env.comm_action_space, i, arglist,
+            local_q_func=(arglist.adv_policy == 'ddpg')))
+    return trainers, comm_trainers
 
 
 def train(arglist):
@@ -86,7 +93,7 @@ def train(arglist):
         # Create agent trainers
         obs_shape_n = [env.observation_space[i].shape for i in range(env.n)]
         num_adversaries = min(env.n, arglist.num_adversaries)
-        trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
+        trainers, comm_trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
         print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
 
         # Initialize
@@ -116,7 +123,11 @@ def train(arglist):
         print('Starting iterations...')
         while True:
             # get action
-            action_n = [agent.action(obs) for agent, obs in zip(trainers,obs_n)]
+            physical_action_n = [agent.action(obs) for agent, obs in zip(trainers,obs_n)]
+            comm_action_n = [agent.action(obs) for agent, obs in zip(comm_trainers,obs_n)]
+            action_n = []
+            for phy, com in zip(physical_action_n, comm_action_n) :
+                action_n.append(np.concatenate((phy, com), axis=0))
             # environment step
             new_obs_n, rew_n, done_n, info_n = env.step(action_n)
             episode_step += 1

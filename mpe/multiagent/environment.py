@@ -36,34 +36,47 @@ class MultiAgentEnv(gym.Env):
         self.time = 0
 
         # configure spaces
-        self.action_space = []
+        self.physical_action_space = []
+        self.comm_action_space = []
         self.observation_space = []
         for agent in self.agents:
-            total_action_space = []
+            total_physical_action_space = []
+            total_comm_action_space = []
             # physical action space
             if self.discrete_action_space:
                 u_action_space = spaces.Discrete(world.dim_p * 2 + 1)
             else:
                 u_action_space = spaces.Box(low=-agent.u_range, high=+agent.u_range, shape=(world.dim_p,), dtype=np.float32)
             if agent.movable:
-                total_action_space.append(u_action_space)
+                total_physical_action_space.append(u_action_space)
             # communication action space
             if self.discrete_action_space:
                 c_action_space = spaces.Discrete(world.dim_c)
             else:
                 c_action_space = spaces.Box(low=0.0, high=1.0, shape=(world.dim_c,), dtype=np.float32)
             if not agent.silent:
-                total_action_space.append(c_action_space)
-            # total action space
-            if len(total_action_space) > 1:
+                total_comm_action_space.append(c_action_space)
+            # total physical action space
+            if len(total_physical_action_space) > 0 and len(total_comm_action_space) > 0:
                 # all action spaces are discrete, so simplify to MultiDiscrete action space
-                if all([isinstance(act_space, spaces.Discrete) for act_space in total_action_space]):
-                    act_space = MultiDiscrete([[0, act_space.n - 1] for act_space in total_action_space])
+                if all([isinstance(act_space, spaces.Discrete) for act_space in total_physical_action_space]):
+                    act_space = MultiDiscrete([[0, act_space.n - 1] for act_space in total_physical_action_space])
                 else:
-                    act_space = spaces.Tuple(total_action_space)
-                self.action_space.append(act_space)
+                    act_space = spaces.Tuple(total_physical_action_space)
+                self.physical_action_space.append(act_space)
             else:
-                self.action_space.append(total_action_space[0])
+                self.physical_action_space.append(total_physical_action_space[0])
+
+            # total comm action space
+            if len(total_physical_action_space) > 0 and len(total_comm_action_space) > 0:
+                # all action spaces are discrete, so simplify to MultiDiscrete action space
+                if all([isinstance(act_space, spaces.Discrete) for act_space in total_comm_action_space]):
+                    act_space = MultiDiscrete([[0, act_space.n - 1] for act_space in total_comm_action_space])
+                else:
+                    act_space = spaces.Tuple(total_comm_action_space)
+                self.comm_action_space.append(act_space)
+            else:
+                self.comm_action_space.append(total_comm_action_space[0])
             # observation space
             obs_dim = len(observation_callback(agent, self.world))
             self.observation_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(obs_dim,), dtype=np.float32))
@@ -85,7 +98,7 @@ class MultiAgentEnv(gym.Env):
         self.agents = self.world.policy_agents
         # set action for each agent
         for i, agent in enumerate(self.agents):
-            self._set_action(action_n[i], agent, self.action_space[i])
+            self._set_action(action_n[i], agent, self.physical_action_space[i], self.comm_action_space[i])
         # advance world state
         self.world.step()
         # record observation for each agent
@@ -141,13 +154,13 @@ class MultiAgentEnv(gym.Env):
         return self.reward_callback(agent, self.world)
 
     # set env action for a particular agent
-    def _set_action(self, action, agent, action_space, time=None):
+    def _set_action(self, action, agent, physical_action_space, comm_action_space, time=None):
         agent.action.u = np.zeros(self.world.dim_p)
         agent.action.c = np.zeros(self.world.dim_c)
         # process action
-        if isinstance(action_space, MultiDiscrete):
+        if isinstance(physical_action_space, MultiDiscrete):
             act = []
-            size = action_space.high - action_space.low + 1
+            size = [physical_action_space.high[0] - physical_action_space.low[0] + 1, comm_action_space.high[0] - comm_action_space.low[0] + 1]
             index = 0
             for s in size:
                 act.append(action[index:(index+s)])
