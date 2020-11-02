@@ -24,10 +24,10 @@ def parse_args():
     # Core training parameters
     parser.add_argument("--lr", type=float, default=1e-2, help="learning rate for Adam optimizer")
     parser.add_argument("--gamma", type=float, default=0.95, help="discount factor")
-    parser.add_argument("--batch-size", type=int, default=1024, help="number of episodes to optimize at the same time")
+    parser.add_argument("--batch-size", type=int, default=150, help="number of episodes to optimize at the same time")
     parser.add_argument("--num-units", type=int, default=64, help="number of units in the mlp")
     # Checkpointing
-    parser.add_argument("--exp-name", type=str, default="full_ob_full_comm", help="name of the experiment")
+    parser.add_argument("--exp-name", type=str, default="full_ob_full_comm_separate_network", help="name of the experiment")
     parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
     parser.add_argument("--save-rate", type=int, default=20, help="save model once every time this many episodes are completed")
     parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
@@ -135,7 +135,10 @@ def train(arglist):
             terminal = (episode_step >= arglist.max_episode_len)
             # collect experience
             for i, agent in enumerate(trainers):
-                agent.experience(obs_n[i], action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
+                agent.experience(obs_n[i], physical_action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
+            for i, agent in enumerate(comm_trainers):
+                agent.experience(obs_n[i], comm_action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
+
             obs_n = new_obs_n
 
             for i, rew in enumerate(rew_n):
@@ -175,8 +178,12 @@ def train(arglist):
             loss = None
             for agent in trainers:
                 agent.preupdate()
+            for agent in comm_trainers:
+                agent.preupdate()
             for agent in trainers:
                 loss = agent.update(trainers, train_step)
+            for agent in comm_trainers:
+                loss = agent.update(comm_trainers, train_step)
 
             # save model, display training output
             if terminal and (len(episode_rewards) % arglist.save_rate == 0):
