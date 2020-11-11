@@ -7,6 +7,8 @@ N agents, N landmarks.
 Agents are rewarded based on how far any agent is from each landmark. 
 Agents are penalized if they collide with other agents. 
 So, agents have to learn to cover all the landmarks while avoiding collisions.
+
+partial obs and partial communication
 """
 class Scenario(BaseScenario):
     def make_world(self):
