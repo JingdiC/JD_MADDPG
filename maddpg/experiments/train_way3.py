@@ -8,7 +8,7 @@ import tensorflow as tf
 import tensorflow.contrib.layers as layers
 
 import maddpg.maddpg.common.tf_util as U
-from maddpg.maddpg.trainer.maddpg import MADDPGAgentTrainer
+from maddpg.maddpg.trainer.maddpg import MADDPGAgentTrainer, GROUPAgentTrainer
 import matplotlib.pyplot as plt
 
 
@@ -68,7 +68,7 @@ def get_group_trainers(env, obs_shape_n, arglist):
     trainers = []
 
     model = mlp_model
-    trainer = MADDPGAgentTrainer
+    trainer = GROUPAgentTrainer
     obs_n = []
     for i in range(0, 5):
         obs_n.append([a[i] for a in obs_shape_n])
@@ -76,7 +76,7 @@ def get_group_trainers(env, obs_shape_n, arglist):
     for i in range(env.n):
         for j in range(0, 5):
             trainers.append(trainer(
-                "agent_%d_group" % j, model, obs_n, env.group_space_output, i, arglist,
+                "agent_%d_group" % j, model, obs_n[j], env.group_space_output, i, arglist,
                 local_q_func=(arglist.adv_policy=='ddpg')))
 
     return trainers
