@@ -16,18 +16,18 @@ def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning experiments for multiagent environments")
     # Environment
     parser.add_argument("--scenario", type=str, default="simple_spread_way2", help="name of the scenario script")
-    parser.add_argument("--max-episode-len", type=int, default=25, help="maximum episode length")
-    parser.add_argument("--num-episodes", type=int, default=30000, help="number of episodes")
+    parser.add_argument("--max-episode-len", type=int, default=10, help="maximum episode length")
+    parser.add_argument("--num-episodes", type=int, default=1000, help="number of episodes")
     parser.add_argument("--num-adversaries", type=int, default=0, help="number of adversaries")
     parser.add_argument("--good-policy", type=str, default="maddpg", help="policy for good agents")
     parser.add_argument("--adv-policy", type=str, default="maddpg", help="policy of adversaries")
     # Core training parameters
     parser.add_argument("--lr", type=float, default=1e-2, help="learning rate for Adam optimizer")
     parser.add_argument("--gamma", type=float, default=0.95, help="discount factor")
-    parser.add_argument("--batch-size", type=int, default=1024, help="number of episodes to optimize at the same time")
+    parser.add_argument("--batch-size", type=int, default=10, help="number of episodes to optimize at the same time")
     parser.add_argument("--num-units", type=int, default=64, help="number of units in the mlp")
     # Checkpointing
-    parser.add_argument("--exp-name", type=str, default="partial_obs_partial_comm_separate_nn", help="name of the experiment")
+    parser.add_argument("--exp-name", type=str, default="full_obs_comm_seperate_nn", help="name of the experiment")
     parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
     parser.add_argument("--save-rate", type=int, default=200, help="save model once every time this many episodes are completed")
     parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
@@ -35,7 +35,7 @@ def parse_args():
     parser.add_argument("--restore", action="store_true", default=False)
     parser.add_argument("--display", action="store_true", default=False)
     parser.add_argument("--benchmark", action="store_true", default=False)
-    parser.add_argument("--benchmark-iters", type=int, default=100000, help="number of iterations run for benchmarking")
+    parser.add_argument("--benchmark-iters", type=int, default=20, help="number of iterations run for benchmarking")
     parser.add_argument("--benchmark-dir", type=str, default="/Users/chenjingdi/Desktop/code/Jingdi-MADDPG/maddpg/benchmark_files/", help="directory where benchmark data is saved")
     parser.add_argument("--plots-dir", type=str, default="/Users/chenjingdi/Desktop/code/Jingdi-MADDPG/maddpg/learning_curves/", help="directory where plot data is saved")
     return parser.parse_args()
@@ -64,9 +64,28 @@ def make_env(scenario_name, arglist, benchmark=False):
         env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation)
     return env
 
+def get_group_trainers(env, obs_shape_n, arglist):
+    trainers = []
+
+    model = mlp_model
+    trainer = MADDPGAgentTrainer
+    obs_n = []
+    for i in range(0, 5):
+        obs_n.append([a[i] for a in obs_shape_n])
+
+    for i in range(env.n):
+        for j in range(0, 5):
+            trainers.append(trainer(
+                "agent_%d_group" % j, model, obs_n, env.group_space_output, i, arglist,
+                local_q_func=(arglist.adv_policy=='ddpg')))
+
+    return trainers
+
+
 def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     trainers = []  # physical movement trainer
     comm_trainers = []
+
     model = mlp_model
     trainer = MADDPGAgentTrainer
     for i in range(num_adversaries):
@@ -76,6 +95,7 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
         comm_trainers.append(trainer(
             "agent_%d_comm" % i, model, obs_shape_n, env.comm_action_space, i, arglist,
             local_q_func=(arglist.adv_policy == 'ddpg')))
+
     for i in range(num_adversaries, env.n):
         trainers.append(trainer(
             "agent_%d" % i, model, obs_shape_n, env.physical_action_space, i, arglist,
@@ -83,8 +103,8 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
         comm_trainers.append(trainer(
             "agent_%d_comm" % i, model, obs_shape_n, env.comm_action_space, i, arglist,
             local_q_func=(arglist.adv_policy == 'ddpg')))
-    return trainers, comm_trainers
 
+    return trainers, comm_trainers
 
 def train(arglist):
     with U.single_threaded_session():
@@ -92,8 +112,15 @@ def train(arglist):
         env = make_env(arglist.scenario, arglist, arglist.benchmark)
         # Create agent trainers
         obs_shape_n = [env.observation_space[i].shape for i in range(env.n)]
+
+        group_shape_n = []
+        for i in range(env.n):
+            current_shape_n = [env.group_space_input[i][j].shape for j in range(0, 5)]
+            group_shape_n.append(current_shape_n)
+
         num_adversaries = min(env.n, arglist.num_adversaries)
         trainers, comm_trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
+        group_trainers = get_group_trainers(env, group_shape_n, arglist)
         print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
 
         # Initialize
@@ -128,8 +155,31 @@ def train(arglist):
         print('Starting iterations...')
         while True:
             # get action
+            group_obs = []
+            group1 = []
+            group2 = []
+            group3 = []
+            group4 = []
+            group5 = []
+            for obs in obs_n:
+                group1.append([obs[0], obs[2]])
+                group2.append([obs[1], obs[3]])
+                group3.append([obs[14], obs[15]])
+
+                group4.append([obs[4], obs[6], obs[8], obs[10], obs[12]])
+                group5.append([obs[5], obs[7], obs[9], obs[11], obs[13]])
+
+                group_obs.append(group1)
+                group_obs.append(group2)
+                group_obs.append(group3)
+                group_obs.append(group4)
+                group_obs.append(group5)
+
             physical_action_n = [agent.action(obs) for agent, obs in zip(trainers,obs_n)]
             comm_action_n = [agent.action(obs) for agent, obs in zip(comm_trainers,obs_n)]
+
+            group_output = [] ##3 * 5
+
             action_n = []
             for phy, com in zip(physical_action_n, comm_action_n) :
                 action_n.append(np.concatenate((phy, com), axis=0))
@@ -225,6 +275,17 @@ def train(arglist):
 
                 agrew_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_agrewards.csv'
                 csv2 = pd.DataFrame(final_ep_ag_rewards).to_csv(agrew_file_name, index=False)
+
+
+                entireObs = []
+                for i, agent in enumerate(comm_trainers):
+                    if i == 1:
+                        entireObs.extend(agent.collectEntrieObs())
+
+
+                agrew_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_replaybufferObs.csv'
+                csv3 = pd.DataFrame(entireObs).to_csv(agrew_file_name, index=False)
+
                 print('...Finished total of {} episodes.'.format(len(episode_rewards)))
                 break
     return final_ep_rewards, final_ep_ag_rewards, final_ep_ag_rewards_0, final_ep_ag_rewards_1, final_ep_ag_rewards_2

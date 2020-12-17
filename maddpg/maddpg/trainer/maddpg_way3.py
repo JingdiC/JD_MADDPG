@@ -113,6 +113,7 @@ class MADDPGAgentTrainer(AgentTrainer):
     def __init__(self, name, model, obs_shape_n, act_space_n, agent_index, args, local_q_func=False):
         self.name = name
         self.n = len(obs_shape_n)
+        self.agent_index = agent_index
         self.args = args
         obs_ph_n = []
         for i in range(self.n):
@@ -154,8 +155,89 @@ class MADDPGAgentTrainer(AgentTrainer):
         # Store transition in the replay buffer.
         self.replay_buffer.add(obs, act, rew, new_obs, float(done))
 
-    def collectEntrieObs(self):
-        return self.replay_buffer.collectEntireObs()
+    def preupdate(self):
+        self.replay_sample_index = None
+
+    def update(self, agents, t):
+        if len(self.replay_buffer) < self.max_replay_buffer_len: # replay buffer is not large enough
+            return
+        if not t % 100 == 0:  # only update every 100 steps
+            return
+
+        self.replay_sample_index = self.replay_buffer.make_index(self.args.batch_size)
+        # collect replay sample from all agents
+        obs_n = []
+        obs_next_n = []
+        act_n = []
+        index = self.replay_sample_index
+        for i in range(self.n):
+            obs, act, rew, obs_next, done = agents[i].replay_buffer.sample_index(index)
+            obs_n.append(obs)
+            obs_next_n.append(obs_next)
+            act_n.append(act)
+        obs, act, rew, obs_next, done = self.replay_buffer.sample_index(index)
+
+        # train q network
+        num_sample = 1
+        target_q = 0.0
+        for i in range(num_sample):
+            target_act_next_n = [agents[i].p_debug['target_act'](obs_next_n[i]) for i in range(self.n)]
+            target_q_next = self.q_debug['target_q_values'](*(obs_next_n + target_act_next_n))
+            target_q += rew + self.args.gamma * (1.0 - done) * target_q_next
+        target_q /= num_sample
+        q_loss = self.q_train(*(obs_n + act_n + [target_q]))
+
+        # train p network
+        p_loss = self.p_train(*(obs_n + act_n))
+
+        self.p_update()
+        self.q_update()
+
+        return [q_loss, p_loss, np.mean(target_q), np.mean(rew), np.mean(target_q_next), np.std(target_q)]
+
+
+class CommunicationTrainer(AgentTrainer):
+    def __init__(self, name, model, obs_shape_n, act_space_n, args, local_q_func=False):
+        self.name = name
+        self.n = len(obs_shape_n)
+        self.args = args
+        obs_ph_n = []
+        for i in range(self.n):
+            obs_ph_n.append(U.BatchInput(obs_shape_n[i], name="observation"+str(i)).get())
+
+        # Create all the functions necessary to train the model
+        self.q_train, self.q_update, self.q_debug = q_train_comm(
+            scope=self.name,
+            make_obs_ph_n=obs_ph_n,
+            act_space_n=act_space_n,
+            q_func=model,
+            optimizer=tf.train.AdamOptimizer(learning_rate=args.lr),
+            grad_norm_clipping=0.5,
+            local_q_func=local_q_func,
+            num_units=args.num_units
+        )
+        self.act, self.p_train, self.p_update, self.p_debug = p_train_comm(
+            scope=self.name,
+            make_obs_ph_n=obs_ph_n,
+            act_space_n=act_space_n,
+            p_func=model,
+            q_func=model,
+            optimizer=tf.train.AdamOptimizer(learning_rate=args.lr),
+            grad_norm_clipping=0.5,
+            local_q_func=local_q_func,
+            num_units=args.num_units
+        )
+        # Create experience buffer
+        self.replay_buffer = ReplayBuffer(1e6)
+        self.max_replay_buffer_len = args.batch_size * args.max_episode_len
+        self.replay_sample_index = None
+
+    def action(self, obs):
+        return self.act(obs[None])[0]
+
+    def experience(self, obs, act, rew, new_obs, done, terminal):
+        # Store transition in the replay buffer.
+        self.replay_buffer.add(obs, act, rew, new_obs, float(done))
 
     def preupdate(self):
         self.replay_sample_index = None

@@ -8,17 +8,13 @@ Agents are rewarded based on how far any agent is from its target landmark.
 Agents are penalized if they collide with other agents. 
 So, agents have to learn to cover its own target landmark while avoiding collisions.
 
-fully obs and fully comm
-use with train_way3 to find the correlation inside the 18 num of obs vector of agent 1
-
-
-
+partial obs and partial communication
 """
 class Scenario(BaseScenario):
     def make_world(self):
         world = World()
         # set any world properties first
-        world.dim_c = 1
+        world.dim_c = 2
         num_agents = 3
         num_landmarks = 3
         world.collaborative = True

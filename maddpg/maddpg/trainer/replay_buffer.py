@@ -84,3 +84,7 @@ class ReplayBuffer(object):
 
     def collect(self):
         return self.sample(-1)
+
+    def collectEntireObs(self):
+        data = np.array(self._storage)[:, 0]
+        return data

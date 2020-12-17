@@ -39,9 +39,13 @@ class MultiAgentEnv(gym.Env):
         self.physical_action_space = []
         self.comm_action_space = []
         self.observation_space = []
+        self.group_space_input = []
+        self.group_space_output = []
         for agent in self.agents:
             total_physical_action_space = []
             total_comm_action_space = []
+            total_group_space = []
+
             # physical action space
             if self.discrete_action_space:
                 u_action_space = spaces.Discrete(world.dim_p * 2 + 1)
@@ -80,6 +84,35 @@ class MultiAgentEnv(gym.Env):
             # observation space
             obs_dim = len(observation_callback(agent, self.world))
             self.observation_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(obs_dim,), dtype=np.float32))
+
+            for i in range(0, 5):
+                if (i < 3) :
+                    total_group_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(2,), dtype=np.float32))
+                else:
+                    total_group_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(5,), dtype=np.float32))
+
+            self.group_space_input.append(total_group_space)
+
+            if self.discrete_action_space:
+                g_action_space = spaces.Discrete(world.dim_c)
+            else:
+                g_action_space = spaces.Box(low=0.0, high=1.0, shape=(world.dim_c,), dtype=np.float32)
+
+            total_g_action_space = []
+            total_g_action_space.append(g_action_space)
+
+            if len(total_g_action_space) > 0:
+                # all action spaces are discrete, so simplify to MultiDiscrete action space
+                if all([isinstance(act_space, spaces.Discrete) for act_space in total_g_action_space]):
+                    act_space = MultiDiscrete([[0, act_space.n - 1] for act_space in total_g_action_space])
+                else:
+                    act_space = spaces.Tuple(total_comm_action_space)
+                self.group_space_output.append(act_space)
+            else:
+                self.group_space_output.append(total_comm_action_space[0])
+
+
+
             agent.action.c = np.zeros(self.world.dim_c)
 
         # rendering
