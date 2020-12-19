@@ -76,7 +76,7 @@ def get_group_trainers(env, obs_shape_n, arglist):
     for i in range(env.n):
         for j in range(0, 5):
             trainers.append(trainer(
-                "agent_%d_group" % j, model, obs_n[j], env.group_space_output, i, arglist,
+                "agent_group_%s_%s" % (i, j), model, obs_n[j], env.group_space_output, i, arglist,
                 local_q_func=(arglist.adv_policy=='ddpg')))
 
     return trainers
@@ -162,23 +162,27 @@ def train(arglist):
             group4 = []
             group5 = []
             for obs in obs_n:
+                group1 = []
+                group2 = []
+                group3 = []
+                group4 = []
+                group5 = []
                 group1.append([obs[0], obs[2]])
                 group2.append([obs[1], obs[3]])
                 group3.append([obs[14], obs[15]])
-
                 group4.append([obs[4], obs[6], obs[8], obs[10], obs[12]])
                 group5.append([obs[5], obs[7], obs[9], obs[11], obs[13]])
 
-                group_obs.append(group1)
-                group_obs.append(group2)
-                group_obs.append(group3)
-                group_obs.append(group4)
-                group_obs.append(group5)
+                group_obs.append(np.squeeze(np.asarray(group1)))
+                group_obs.append(np.squeeze(np.asarray(group2)))
+                group_obs.append(np.squeeze(np.asarray(group3)))
+                group_obs.append(np.squeeze(np.asarray(group4)))
+                group_obs.append(np.squeeze(np.asarray(group5)))
 
             physical_action_n = [agent.action(obs) for agent, obs in zip(trainers,obs_n)]
             comm_action_n = [agent.action(obs) for agent, obs in zip(comm_trainers,obs_n)]
 
-            group_output = [] ##3 * 5
+            group_output = [agent.action(obs) for agent, obs in zip(group_trainers, group_obs)]
 
             action_n = []
             for phy, com in zip(physical_action_n, comm_action_n) :
