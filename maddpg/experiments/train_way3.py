@@ -70,11 +70,11 @@ def get_group_trainers(env, obs_shape_n, arglist):
     model = mlp_model
     trainer = GROUPAgentTrainer
     obs_n = []
-    for i in range(0, 5):
+    for i in range(0, 6):
         obs_n.append([a[i] for a in obs_shape_n])
 
     for i in range(env.n):
-        for j in range(0, 5):
+        for j in range(0, 6):
             trainers.append(trainer(
                 "agent_group_%s_%s" % (i, j), model, obs_n[j], env.group_space_output, i, arglist,
                 local_q_func=(arglist.adv_policy=='ddpg')))
@@ -89,20 +89,22 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     model = mlp_model
     trainer = MADDPGAgentTrainer
     for i in range(num_adversaries):
+        comm_trainers.append(trainer(
+            "agent_%d_comm" % i, model, obs_shape_n, env.comm_action_space, i, arglist,
+            local_q_func=(arglist.adv_policy == 'ddpg')))
         trainers.append(trainer(
             "agent_%d" % i, model, obs_shape_n, env.physical_action_space, i, arglist,
             local_q_func=(arglist.adv_policy=='ddpg')))
+
+
+    for i in range(num_adversaries, env.n):
         comm_trainers.append(trainer(
             "agent_%d_comm" % i, model, obs_shape_n, env.comm_action_space, i, arglist,
             local_q_func=(arglist.adv_policy == 'ddpg')))
-
-    for i in range(num_adversaries, env.n):
         trainers.append(trainer(
             "agent_%d" % i, model, obs_shape_n, env.physical_action_space, i, arglist,
             local_q_func=(arglist.adv_policy == 'ddpg')))
-        comm_trainers.append(trainer(
-            "agent_%d_comm" % i, model, obs_shape_n, env.comm_action_space, i, arglist,
-            local_q_func=(arglist.adv_policy == 'ddpg')))
+
 
     return trainers, comm_trainers
 
@@ -115,7 +117,7 @@ def train(arglist):
 
         group_shape_n = []
         for i in range(env.n):
-            current_shape_n = [env.group_space_input[i][j].shape for j in range(0, 5)]
+            current_shape_n = [env.group_space_input[i][j].shape for j in range(0, 6)]
             group_shape_n.append(current_shape_n)
 
         num_adversaries = min(env.n, arglist.num_adversaries)
@@ -156,33 +158,34 @@ def train(arglist):
         while True:
             # get action
             group_obs = []
-            group1 = []
-            group2 = []
-            group3 = []
-            group4 = []
-            group5 = []
             for obs in obs_n:
                 group1 = []
                 group2 = []
                 group3 = []
                 group4 = []
                 group5 = []
+                group6 = []
                 group1.append([obs[0], obs[2]])
                 group2.append([obs[1], obs[3]])
-                group3.append([obs[14], obs[15]])
-                group4.append([obs[4], obs[6], obs[8], obs[10], obs[12]])
-                group5.append([obs[5], obs[7], obs[9], obs[11], obs[13]])
+                group3.append([obs[14], obs[16]])
+                group4.append([obs[15], obs[17]])
+                group5.append([obs[4], obs[6], obs[8], obs[10], obs[12]])
+                group6.append([obs[5], obs[7], obs[9], obs[11], obs[13]])
+
 
                 group_obs.append(np.squeeze(np.asarray(group1)))
                 group_obs.append(np.squeeze(np.asarray(group2)))
                 group_obs.append(np.squeeze(np.asarray(group3)))
                 group_obs.append(np.squeeze(np.asarray(group4)))
                 group_obs.append(np.squeeze(np.asarray(group5)))
-
-            physical_action_n = [agent.action(obs) for agent, obs in zip(trainers,obs_n)]
-            comm_action_n = [agent.action(obs) for agent, obs in zip(comm_trainers,obs_n)]
-
+                group_obs.append(np.squeeze(np.asarray(group6)))
             group_output = [agent.action(obs) for agent, obs in zip(group_trainers, group_obs)]
+
+            comm_action_n = [agent.action(obs) for agent, obs in zip(comm_trainers, obs_n)]
+            physical_action_n = [agent.action(obs) for agent, obs in zip(trainers,obs_n)]
+
+
+
 
             action_n = []
             for phy, com in zip(physical_action_n, comm_action_n) :
