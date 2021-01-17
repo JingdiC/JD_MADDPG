@@ -49,6 +49,15 @@ def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=Non
         out = layers.fully_connected(out, num_outputs=num_outputs, activation_fn=None)
         return out
 
+def mlp_model_attention(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=None):
+    # This model takes as input an observation and returns values of all actions
+    with tf.variable_scope(scope, reuse=reuse):
+        out = input
+        out = layers.fully_connected(out, num_outputs=num_units, activation_fn=tf.nn.relu)
+        out = layers.fully_connected(out, num_outputs=num_units, activation_fn=tf.nn.relu)
+        out = layers.fully_connected(out, num_outputs=num_outputs, activation_fn=tf.nn.softmax)
+        return out
+
 def make_env(scenario_name, arglist, benchmark=False):
     from mpe.multiagent.environment import MultiAgentEnv
     import mpe.multiagent.scenarios as scenarios
@@ -64,12 +73,15 @@ def make_env(scenario_name, arglist, benchmark=False):
         env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation)
     return env
 
-def get_group_trainers(env, obs_shape_n, arglist):
+def get_group_trainers(env, obs_shape_n, attention_shape_n, arglist):
     trainers = []
+    attention_model = mlp_model_attention
 
     model = mlp_model
     trainer = GROUPAgentTrainer
     obs_n = []
+    attention_trainers = []
+    attention_trainer = MADDPGAgentTrainer
     for i in range(0, 6):
         obs_n.append([a[i] for a in obs_shape_n])
 
@@ -79,7 +91,12 @@ def get_group_trainers(env, obs_shape_n, arglist):
                 "agent_group_%s_%s" % (i, j), model, obs_n[j], env.group_space_output, i, arglist,
                 local_q_func=(arglist.adv_policy=='ddpg')))
 
-    return trainers
+    for i in range(env.n):
+        attention_trainers.append(attention_trainer(
+                "agent_attention_%i" % i, attention_model, attention_shape_n, env.group_attention_output, i, arglist,
+                local_q_func=(arglist.adv_policy=='ddpg')))
+
+    return trainers, attention_trainers
 
 
 def get_trainers(env, num_adversaries, obs_shape_n, arglist):
@@ -114,6 +131,7 @@ def train(arglist):
         env = make_env(arglist.scenario, arglist, arglist.benchmark)
         # Create agent trainers
         obs_shape_n = [env.observation_space[i].shape for i in range(env.n)]
+        attention_shape_n = [env.group_attention_input[i].shape for i in range(env.n)]
 
         group_shape_n = []
         for i in range(env.n):
@@ -122,7 +140,7 @@ def train(arglist):
 
         num_adversaries = min(env.n, arglist.num_adversaries)
         trainers, comm_trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
-        group_trainers = get_group_trainers(env, group_shape_n, arglist)
+        group_trainers, attention_traniners = get_group_trainers(env, group_shape_n, attention_shape_n,arglist)
         print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
 
         # Initialize
@@ -180,15 +198,43 @@ def train(arglist):
                 group_obs.append(np.squeeze(np.asarray(group5)))
                 group_obs.append(np.squeeze(np.asarray(group6)))
             group_output = [agent.action(obs) for agent, obs in zip(group_trainers, group_obs)]
+            g1 = []
+            g2 = []
+            g3 = []
+            attention_input = []
+            for i in range(0, len(group_output)):
+                if i < 6 :
+                    g1.extend(group_output[i])
+                elif i < 12 :
+                    g2.extend(group_output[i])
+                elif i < 18 :
+                    g3.extend(group_output[i])
 
-            comm_action_n = [agent.action(obs) for agent, obs in zip(comm_trainers, obs_n)]
-            physical_action_n = [agent.action(obs) for agent, obs in zip(trainers,obs_n)]
+            attention_input.append(np.squeeze(np.asarray(g1)))
+            attention_input.append(np.squeeze(np.asarray(g2)))
+            attention_input.append(np.squeeze(np.asarray(g3)))
 
 
+            attention_output = [agent.action(obs) for agent, obs in zip(attention_traniners, attention_input)]
+            argmax = [np.argmax(attention) for attention in attention_output]
 
+            attention_comm = []
+            attention_comm.append(group_output[argmax[0]])
+            attention_comm.append(group_output[argmax[1] + 5])
+            attention_comm.append(group_output[argmax[2] + 11])
 
+            for i, agent in enumerate(env.agents) :
+                agent.state.c = attention_comm[i]
+
+            for i in range(0, len(obs_n)):
+                obs_n[i] = obs_n[i][:14]
+                for j in range(0, len(attention_comm)):
+                    if j != i :
+                        obs_n[i] = np.append(obs_n[i], attention_comm[j])
+
+            physical_action_n = [agent.action(obs) for agent, obs in zip(trainers, obs_n)]
             action_n = []
-            for phy, com in zip(physical_action_n, comm_action_n) :
+            for phy, com in zip(physical_action_n, attention_comm) :
                 action_n.append(np.concatenate((phy, com), axis=0))
             # environment step
             new_obs_n, rew_n, done_n, info_n = env.step(action_n)
@@ -198,8 +244,8 @@ def train(arglist):
             # collect experience
             for i, agent in enumerate(trainers):
                 agent.experience(obs_n[i], physical_action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
-            for i, agent in enumerate(comm_trainers):
-                agent.experience(obs_n[i], comm_action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
+ #           for i, agent in enumerate():
+ #               agent.experience(obs_n[i], [i], rew_n[i], new_obs_n[i], done_n[i], terminal)
 
             obs_n = new_obs_n
 

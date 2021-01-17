@@ -41,10 +41,14 @@ class MultiAgentEnv(gym.Env):
         self.observation_space = []
         self.group_space_input = []
         self.group_space_output = []
+        self.group_attention_input = []
+        self.group_attention_output = []
         for agent in self.agents:
             total_physical_action_space = []
             total_comm_action_space = []
             total_group_space = []
+            total_attention_space = []
+            total_attention_action_space = []
 
             # physical action space
             if self.discrete_action_space:
@@ -111,9 +115,9 @@ class MultiAgentEnv(gym.Env):
             else:
                 self.group_space_output.append(total_comm_action_space[0])
 
-
-
             agent.action.c = np.zeros(self.world.dim_c)
+            self.group_attention_input.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(12,), dtype=np.float32))
+            self.group_attention_output.append(MultiDiscrete([[0, 5]]))
 
         # rendering
         self.shared_viewer = shared_viewer
