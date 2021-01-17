@@ -8,7 +8,7 @@ import tensorflow as tf
 import tensorflow.contrib.layers as layers
 
 import maddpg.maddpg.common.tf_util as U
-from maddpg.maddpg.trainer.maddpg import MADDPGAgentTrainer, GROUPAgentTrainer
+from maddpg.maddpg.trainer.maddpg import MADDPGAgentTrainer, GROUPAgentTrainer, AttentionAgentTrainer
 import matplotlib.pyplot as plt
 
 
@@ -81,7 +81,7 @@ def get_group_trainers(env, obs_shape_n, attention_shape_n, arglist):
     trainer = GROUPAgentTrainer
     obs_n = []
     attention_trainers = []
-    attention_trainer = MADDPGAgentTrainer
+    attention_trainer = AttentionAgentTrainer
     for i in range(0, 6):
         obs_n.append([a[i] for a in obs_shape_n])
 
@@ -101,29 +101,22 @@ def get_group_trainers(env, obs_shape_n, attention_shape_n, arglist):
 
 def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     trainers = []  # physical movement trainer
-    comm_trainers = []
 
     model = mlp_model
     trainer = MADDPGAgentTrainer
     for i in range(num_adversaries):
-        comm_trainers.append(trainer(
-            "agent_%d_comm" % i, model, obs_shape_n, env.comm_action_space, i, arglist,
-            local_q_func=(arglist.adv_policy == 'ddpg')))
         trainers.append(trainer(
             "agent_%d" % i, model, obs_shape_n, env.physical_action_space, i, arglist,
             local_q_func=(arglist.adv_policy=='ddpg')))
 
 
     for i in range(num_adversaries, env.n):
-        comm_trainers.append(trainer(
-            "agent_%d_comm" % i, model, obs_shape_n, env.comm_action_space, i, arglist,
-            local_q_func=(arglist.adv_policy == 'ddpg')))
         trainers.append(trainer(
             "agent_%d" % i, model, obs_shape_n, env.physical_action_space, i, arglist,
             local_q_func=(arglist.adv_policy == 'ddpg')))
 
 
-    return trainers, comm_trainers
+    return trainers
 
 def train(arglist):
     with U.single_threaded_session():
@@ -139,7 +132,7 @@ def train(arglist):
             group_shape_n.append(current_shape_n)
 
         num_adversaries = min(env.n, arglist.num_adversaries)
-        trainers, comm_trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
+        trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
         group_trainers, attention_traniners = get_group_trainers(env, group_shape_n, attention_shape_n,arglist)
         print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
 
@@ -148,7 +141,9 @@ def train(arglist):
 
         for agent in trainers:
             agent.saver = tf.train.Saver()
-        for agent in comm_trainers:
+        for agent in group_trainers:
+            agent.saver = tf.train.Saver()
+        for agent in attention_traniners :
             agent.saver = tf.train.Saver()
 
         # Load previous results, if necessary
@@ -172,6 +167,9 @@ def train(arglist):
         train_step = 0
         t_start = time.time()
 
+        old_attention = []
+        old_group = []
+
         print('Starting iterations...')
         while True:
             # get action
@@ -183,10 +181,10 @@ def train(arglist):
                 group4 = []
                 group5 = []
                 group6 = []
-                group1.append([obs[0], obs[2]])
-                group2.append([obs[1], obs[3]])
-                group3.append([obs[14], obs[16]])
-                group4.append([obs[15], obs[17]])
+                group1.append([obs[0], obs[2], 0, 0, 0])
+                group2.append([obs[1], obs[3], 0, 0, 0])
+                group3.append([obs[14], obs[16], 0, 0 ,0])
+                group4.append([obs[15], obs[17], 0, 0, 0])
                 group5.append([obs[4], obs[6], obs[8], obs[10], obs[12]])
                 group6.append([obs[5], obs[7], obs[9], obs[11], obs[13]])
 
@@ -197,6 +195,7 @@ def train(arglist):
                 group_obs.append(np.squeeze(np.asarray(group4)))
                 group_obs.append(np.squeeze(np.asarray(group5)))
                 group_obs.append(np.squeeze(np.asarray(group6)))
+
             group_output = [agent.action(obs) for agent, obs in zip(group_trainers, group_obs)]
             g1 = []
             g2 = []
@@ -216,12 +215,17 @@ def train(arglist):
 
 
             attention_output = [agent.action(obs) for agent, obs in zip(attention_traniners, attention_input)]
+
+            if train_step == 0 :
+                old_group = group_obs
+                old_attention = attention_input
+
             argmax = [np.argmax(attention) for attention in attention_output]
 
             attention_comm = []
             attention_comm.append(group_output[argmax[0]])
-            attention_comm.append(group_output[argmax[1] + 5])
-            attention_comm.append(group_output[argmax[2] + 11])
+            attention_comm.append(group_output[argmax[1] + 6])
+            attention_comm.append(group_output[argmax[2] + 12])
 
             for i, agent in enumerate(env.agents) :
                 agent.state.c = attention_comm[i]
@@ -244,9 +248,19 @@ def train(arglist):
             # collect experience
             for i, agent in enumerate(trainers):
                 agent.experience(obs_n[i], physical_action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
- #           for i, agent in enumerate():
- #               agent.experience(obs_n[i], [i], rew_n[i], new_obs_n[i], done_n[i], terminal)
+            for i, agent in enumerate(attention_traniners):
+                agent.experience(attention_input[i], attention_output[i], rew_n[i], old_attention[i], done_n[i], terminal)
+            for i, agent in enumerate(group_trainers):
+                if i < 6:
+                    agent.experience(group_obs[i], group_output[i], rew_n[0], old_group[i], done_n[0], terminal)
+                elif i < 12:
+                    agent.experience(group_obs[i], group_output[i], rew_n[1], old_group[i], done_n[1], terminal)
+                elif i < 18:
+                    agent.experience(group_obs[i], group_output[i], rew_n[2], old_group[i], done_n[2], terminal)
 
+
+            old_attention = attention_input
+            old_group = group_obs
             obs_n = new_obs_n
 
             for i, rew in enumerate(rew_n):
@@ -286,12 +300,16 @@ def train(arglist):
             loss = None
             for agent in trainers:
                 agent.preupdate()
-            for agent in comm_trainers:
+            for agent in attention_traniners:
+                agent.preupdate()
+            for agent in group_trainers:
                 agent.preupdate()
             for agent in trainers:
                 loss = agent.update(trainers, train_step)
-            for agent in comm_trainers:
-                loss = agent.update(comm_trainers, train_step)
+            for agent in attention_traniners:
+                loss = agent.update(attention_traniners, train_step)
+            for agent in group_trainers:
+                loss = agent.update(group_trainers, train_step)
 
             # save model, display training output
             if terminal and (len(episode_rewards) % arglist.save_rate == 0):
@@ -319,9 +337,9 @@ def train(arglist):
             # saves final episode reward for plotting training curve later
             if len(episode_rewards) > arglist.num_episodes:
 
-                for i, agent in enumerate(comm_trainers):
-                    model_path = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_agent_' + str(i) + 'model.ckpt'
-                    saver.save(U.get_session(), model_path)
+               # for i, agent in enumerate(comm_trainers):
+               #     model_path = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_agent_' + str(i) + 'model.ckpt'
+               #     saver.save(U.get_session(), model_path)
 
                 rew_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_rewards.csv'
                 csv1 = pd.DataFrame(final_ep_rewards).to_csv(rew_file_name, index=False)
@@ -330,14 +348,14 @@ def train(arglist):
                 csv2 = pd.DataFrame(final_ep_ag_rewards).to_csv(agrew_file_name, index=False)
 
 
-                entireObs = []
-                for i, agent in enumerate(comm_trainers):
-                    if i == 1:
-                        entireObs.extend(agent.collectEntrieObs())
+              #  entireObs = []
+              #  for i, agent in enumerate(comm_trainers):
+              #      if i == 1:
+              #          entireObs.extend(agent.collectEntrieObs())
 
 
-                agrew_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_replaybufferObs.csv'
-                csv3 = pd.DataFrame(entireObs).to_csv(agrew_file_name, index=False)
+              #  agrew_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_replaybufferObs.csv'
+              #  csv3 = pd.DataFrame(entireObs).to_csv(agrew_file_name, index=False)
 
                 print('...Finished total of {} episodes.'.format(len(episode_rewards)))
                 break

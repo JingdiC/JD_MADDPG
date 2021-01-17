@@ -90,10 +90,7 @@ class MultiAgentEnv(gym.Env):
             self.observation_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(obs_dim,), dtype=np.float32))
 
             for i in range(0, 6):
-                if (i < 4) :
-                    total_group_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(2,), dtype=np.float32))
-                else:
-                    total_group_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(5,), dtype=np.float32))
+                total_group_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(5,), dtype=np.float32))
 
             self.group_space_input.append(total_group_space)
 
