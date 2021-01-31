@@ -2,7 +2,14 @@ import numpy as np
 from mpe.multiagent.core import World, Agent, Landmark
 from mpe.multiagent.scenario import BaseScenario
 
-
+'''
+1 adversary (red), N good agents (green), N landmarks (usually N=2). 
+All agents observe position of landmarks and other agents. 
+One landmark is the ‘target landmark’ (colored green). 
+Good agents rewarded based on how close one of them is to the target landmark, but negatively rewarded if the adversary is close to target landmark. 
+Adversary is rewarded based on how close it is to the target, but it doesn’t know which landmark is the target landmark. 
+So good agents have to learn to ‘split up’ and cover all landmarks to deceive the adversary.
+'''
 class Scenario(BaseScenario):
 
     def make_world(self):

@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning experiments for multiagent environments")
     # Environment
-    parser.add_argument("--scenario", type=str, default="simple_speaker_listener_way2", help="name of the scenario script")
+    parser.add_argument("--scenario", type=str, default="simple_reference", help="name of the scenario script")
     parser.add_argument("--max-episode-len", type=int, default=25, help="maximum episode length")
     parser.add_argument("--num-episodes", type=int, default=3000, help="number of episodes")
     parser.add_argument("--num-adversaries", type=int, default=0, help="number of adversaries")
@@ -27,7 +27,7 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=150, help="number of episodes to optimize at the same time")
     parser.add_argument("--num-units", type=int, default=64, help="number of units in the mlp")
     # Checkpointing
-    parser.add_argument("--exp-name", type=str, default="speaker_way2_attention_nn", help="name of the experiment")
+    parser.add_argument("--exp-name", type=str, default="ref_att_full", help="name of the experiment")
     parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
     parser.add_argument("--save-rate", type=int, default=20, help="save model once every time this many episodes are completed")
     parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
@@ -82,11 +82,11 @@ def get_group_trainers(env, obs_shape_n, attention_shape_n, arglist):
     obs_n = []
     attention_trainers = []
     attention_trainer = AttentionAgentTrainer
-    for i in range(0, 6):
+    for i in range(0, 5):
         obs_n.append([a[i] for a in obs_shape_n])
 
     for i in range(env.n):
-        for j in range(0, 6):
+        for j in range(0, 5):
             trainers.append(trainer(
                 "agent_group_%s_%s" % (i, j), model, obs_n[j], env.group_space_output, i, arglist,
                 local_q_func=(arglist.adv_policy=='ddpg')))
@@ -128,7 +128,7 @@ def train(arglist):
 
         group_shape_n = []
         for i in range(env.n):
-            current_shape_n = [env.group_space_input[i][j].shape for j in range(0, 6)]
+            current_shape_n = [env.group_space_input[i][j].shape for j in range(0, 5)]
             group_shape_n.append(current_shape_n)
 
         num_adversaries = min(env.n, arglist.num_adversaries)
@@ -180,13 +180,11 @@ def train(arglist):
                 group3 = []
                 group4 = []
                 group5 = []
-                group6 = []
-                group1.append([obs[0], obs[2], 0, 0, 0])
-                group2.append([obs[1], obs[3], 0, 0, 0])
-                group3.append([obs[14], obs[16], 0, 0 ,0])
-                group4.append([obs[15], obs[17], 0, 0, 0])
-                group5.append([obs[4], obs[6], obs[8], obs[10], obs[12]])
-                group6.append([obs[5], obs[7], obs[9], obs[11], obs[13]])
+                group1.append([obs[8], obs[12], 0])
+                group2.append([obs[10], obs[11], 0])
+                group3.append([obs[0], obs[1], obs[9]])
+                group4.append([obs[2], obs[4], obs[6]])
+                group5.append([obs[3], obs[5], obs[7]])
 
 
                 group_obs.append(np.squeeze(np.asarray(group1)))
@@ -194,24 +192,19 @@ def train(arglist):
                 group_obs.append(np.squeeze(np.asarray(group3)))
                 group_obs.append(np.squeeze(np.asarray(group4)))
                 group_obs.append(np.squeeze(np.asarray(group5)))
-                group_obs.append(np.squeeze(np.asarray(group6)))
 
             group_output = [agent.action(obs) for agent, obs in zip(group_trainers, group_obs)]
             g1 = []
             g2 = []
-            g3 = []
             attention_input = []
             for i in range(0, len(group_output)):
-                if i < 6 :
+                if i < 5 :
                     g1.extend(group_output[i])
-                elif i < 12 :
+                elif i < 10 :
                     g2.extend(group_output[i])
-                elif i < 18 :
-                    g3.extend(group_output[i])
 
             attention_input.append(np.squeeze(np.asarray(g1)))
             attention_input.append(np.squeeze(np.asarray(g2)))
-            attention_input.append(np.squeeze(np.asarray(g3)))
 
 
             attention_output = [agent.action(obs) for agent, obs in zip(attention_traniners, attention_input)]
@@ -224,14 +217,13 @@ def train(arglist):
 
             attention_comm = []
             attention_comm.append(group_output[argmax[0]])
-            attention_comm.append(group_output[argmax[1] + 6])
-            attention_comm.append(group_output[argmax[2] + 12])
+            attention_comm.append(group_output[argmax[1] + 5])
 
             for i, agent in enumerate(env.agents) :
                 agent.state.c = attention_comm[i]
 
             for i in range(0, len(obs_n)):
-                obs_n[i] = obs_n[i][:14]
+                obs_n[i] = obs_n[i][:11]
                 for j in range(0, len(attention_comm)):
                     if j != i :
                         obs_n[i] = np.append(obs_n[i], attention_comm[j])
@@ -251,12 +243,10 @@ def train(arglist):
             for i, agent in enumerate(attention_traniners):
                 agent.experience(attention_input[i], attention_output[i], rew_n[i], old_attention[i], done_n[i], terminal)
             for i, agent in enumerate(group_trainers):
-                if i < 6:
+                if i < 5:
                     agent.experience(group_obs[i], group_output[i], rew_n[0], old_group[i], done_n[0], terminal)
-                elif i < 12:
+                elif i < 10:
                     agent.experience(group_obs[i], group_output[i], rew_n[1], old_group[i], done_n[1], terminal)
-                elif i < 18:
-                    agent.experience(group_obs[i], group_output[i], rew_n[2], old_group[i], done_n[2], terminal)
 
 
             old_attention = attention_input
