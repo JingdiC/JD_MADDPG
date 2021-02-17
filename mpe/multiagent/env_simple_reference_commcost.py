@@ -89,8 +89,8 @@ class MultiAgentEnv(gym.Env):
             obs_dim = len(observation_callback(agent, self.world))
             self.observation_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(obs_dim,), dtype=np.float32))
 
-            for i in range(0, 6):
-                total_group_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(5,), dtype=np.float32))
+            for i in range(0, 5):
+                total_group_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(3,), dtype=np.float32))
 
             self.group_space_input.append(total_group_space)
 
@@ -113,8 +113,8 @@ class MultiAgentEnv(gym.Env):
                 self.group_space_output.append(total_comm_action_space[0])
 
             agent.action.c = np.zeros(self.world.dim_c)
-            self.group_attention_input.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(12,), dtype=np.float32))
-            self.group_attention_output.append(MultiDiscrete([[0, 5]]))
+            self.group_attention_input.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(10,), dtype=np.float32))
+            self.group_attention_output.append(MultiDiscrete([[0, 4]]))
 
         # rendering
         self.shared_viewer = shared_viewer

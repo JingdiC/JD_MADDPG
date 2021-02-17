@@ -60,10 +60,12 @@ class Scenario(BaseScenario):
             landmark.state.p_pos = np.random.uniform(-1,+1, world.dim_p)
             landmark.state.p_vel = np.zeros(world.dim_p)
 
-    def reward(self, agent, world):
+    def reward(self, agent, world, i):
+        comm_cost = [0.3, 0.3, 0.35, 0.4, 0.4]
+        alpha = 0.05
         if agent.goal_a is None or agent.goal_b is None:
             return 0.0
-        dist2 = np.sum(np.square(agent.goal_a.state.p_pos - agent.goal_b.state.p_pos))
+        dist2 = np.sum(np.square(agent.goal_a.state.p_pos - agent.goal_b.state.p_pos)) + alpha * comm_cost[i]
         return -dist2
 
     def observation(self, agent, world):

@@ -15,9 +15,9 @@ import matplotlib.pyplot as plt
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning experiments for multiagent environments")
     # Environment
-    parser.add_argument("--scenario", type=str, default="simple_speaker_listener_way2", help="name of the scenario script")
+    parser.add_argument("--scenario", type=str, default="simple_spread_way2", help="name of the scenario script")
     parser.add_argument("--max-episode-len", type=int, default=25, help="maximum episode length")
-    parser.add_argument("--num-episodes", type=int, default=3000, help="number of episodes")
+    parser.add_argument("--num-episodes", type=int, default=60, help="number of episodes")
     parser.add_argument("--num-adversaries", type=int, default=0, help="number of adversaries")
     parser.add_argument("--good-policy", type=str, default="maddpg", help="policy for good agents")
     parser.add_argument("--adv-policy", type=str, default="maddpg", help="policy of adversaries")
@@ -27,7 +27,7 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=150, help="number of episodes to optimize at the same time")
     parser.add_argument("--num-units", type=int, default=64, help="number of units in the mlp")
     # Checkpointing
-    parser.add_argument("--exp-name", type=str, default="speaker_way2_attention_nn", help="name of the experiment")
+    parser.add_argument("--exp-name", type=str, default="weig_comm_cost_spread_way2_atten", help="name of the experiment")
     parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
     parser.add_argument("--save-rate", type=int, default=20, help="save model once every time this many episodes are completed")
     parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
@@ -170,6 +170,10 @@ def train(arglist):
         old_attention = []
         old_group = []
 
+        g1Save = []
+        g2Save = []
+        g3Save = []
+
         print('Starting iterations...')
         while True:
             # get action
@@ -209,6 +213,10 @@ def train(arglist):
                 elif i < 18 :
                     g3.extend(group_output[i])
 
+            g1Save.append(np.squeeze(np.asarray(g1)))
+            g2Save.append(np.squeeze(np.asarray(g2)))
+            g3Save.append(np.squeeze(np.asarray(g3)))
+
             attention_input.append(np.squeeze(np.asarray(g1)))
             attention_input.append(np.squeeze(np.asarray(g2)))
             attention_input.append(np.squeeze(np.asarray(g3)))
@@ -241,7 +249,7 @@ def train(arglist):
             for phy, com in zip(physical_action_n, attention_comm) :
                 action_n.append(np.concatenate((phy, com), axis=0))
             # environment step
-            new_obs_n, rew_n, done_n, info_n = env.step(action_n)
+            new_obs_n, rew_n, done_n, info_n = env.step(action_n, argmax)
             episode_step += 1
             done = all(done_n)
             terminal = (episode_step >= arglist.max_episode_len)
@@ -347,6 +355,15 @@ def train(arglist):
                 agrew_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_agrewards.csv'
                 csv2 = pd.DataFrame(final_ep_ag_rewards).to_csv(agrew_file_name, index=False)
 
+                g1Save_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_g1Save.csv'
+                csv3 = pd.DataFrame(g1Save).to_csv(g1Save_file_name, index=False)
+
+                g2Save_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_g2Save.csv'
+                csv4 = pd.DataFrame(g2Save).to_csv(g2Save_file_name, index=False)
+
+                g3Save_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_g3Save.csv'
+                csv5 = pd.DataFrame(g3Save).to_csv(g3Save_file_name, index=False)
+
 
               #  entireObs = []
               #  for i, agent in enumerate(comm_trainers):
@@ -356,6 +373,8 @@ def train(arglist):
 
               #  agrew_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_replaybufferObs.csv'
               #  csv3 = pd.DataFrame(entireObs).to_csv(agrew_file_name, index=False)
+
+
 
                 print('...Finished total of {} episodes.'.format(len(episode_rewards)))
                 break

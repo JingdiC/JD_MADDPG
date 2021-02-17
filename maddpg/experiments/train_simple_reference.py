@@ -27,7 +27,7 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=150, help="number of episodes to optimize at the same time")
     parser.add_argument("--num-units", type=int, default=64, help="number of units in the mlp")
     # Checkpointing
-    parser.add_argument("--exp-name", type=str, default="ref_att_full", help="name of the experiment")
+    parser.add_argument("--exp-name", type=str, default="weig_comm_cost_ref_atten_full", help="name of the experiment")
     parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
     parser.add_argument("--save-rate", type=int, default=20, help="save model once every time this many episodes are completed")
     parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
@@ -233,7 +233,7 @@ def train(arglist):
             for phy, com in zip(physical_action_n, attention_comm) :
                 action_n.append(np.concatenate((phy, com), axis=0))
             # environment step
-            new_obs_n, rew_n, done_n, info_n = env.step(action_n)
+            new_obs_n, rew_n, done_n, info_n = env.step(action_n, argmax)
             episode_step += 1
             done = all(done_n)
             terminal = (episode_step >= arglist.max_episode_len)
