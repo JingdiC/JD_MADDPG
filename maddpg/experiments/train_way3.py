@@ -228,7 +228,10 @@ def train(arglist):
                 old_group = group_obs
                 old_attention = attention_input
 
-            argmax = [np.argmax(attention) for attention in attention_output]
+            argmax = [np.argpartition(attention, -2)[-2:] for attention in attention_output]
+            pro = [attention[argmax[i]] for i, attention in enumerate(attention_output)]
+            b1 = [p[0]/(p[0] + p[1]) for i, p in enumerate(pro)]
+            b2 = [p[1] / (p[0] + p[1]) for i, p in enumerate(pro)]
 
             attention_comm = []
             attention_comm.append(group_output[argmax[0]])
