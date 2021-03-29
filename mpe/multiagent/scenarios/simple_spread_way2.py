@@ -18,7 +18,7 @@ class Scenario(BaseScenario):
     def make_world(self):
         world = World()
         # set any world properties first
-        world.dim_c = 2
+        world.dim_c = 4
         num_agents = 3
         num_landmarks = 3
         world.collaborative = True
@@ -98,7 +98,7 @@ class Scenario(BaseScenario):
 
         comm_cost = [0.2,0.2,0.3,0.3,0.5,0.5]
         alpha = 0.05
-        rew = -alpha * comm_cost[i]
+        rew = -alpha * (comm_cost[i[0]] + comm_cost[i[1]])
         dists = [np.sqrt(np.sum(np.square(a.state.p_pos - a.goal.state.p_pos))) for a in world.agents]
         rew -= min(dists)
         if agent.collide:

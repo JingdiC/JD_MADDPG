@@ -6,10 +6,12 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
+import copy
 
 import maddpg.maddpg.common.tf_util as U
 from maddpg.maddpg.trainer.maddpg import MADDPGAgentTrainer, GROUPAgentTrainer, AttentionAgentTrainer
 import matplotlib.pyplot as plt
+from maddpg.experiments.ibmac_inter import IBMACInterAgentTrainer
 
 
 def parse_args():
@@ -26,6 +28,7 @@ def parse_args():
     parser.add_argument("--gamma", type=float, default=0.95, help="discount factor")
     parser.add_argument("--batch-size", type=int, default=150, help="number of episodes to optimize at the same time")
     parser.add_argument("--num-units", type=int, default=64, help="number of units in the mlp")
+    parser.add_argument("--dim-message", type=int, default=2, help="dimension of messages")
     # Checkpointing
     parser.add_argument("--exp-name", type=str, default="weig_comm_cost_spread_way2_atten", help="name of the experiment")
     parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
@@ -58,6 +61,22 @@ def mlp_model_attention(input, num_outputs, scope, reuse=False, num_units=64, rn
         out = layers.fully_connected(out, num_outputs=num_outputs, activation_fn=tf.nn.softmax)
         return out
 
+def inter_step(input, num_outputs, scope, reuse=False, num_units=64, dim_message=2, rnn_cell=None):
+    with tf.variable_scope(scope, reuse=reuse):
+        obs, message = input
+        h = layers.fully_connected(obs, num_outputs=num_units, activation_fn=tf.nn.relu)
+        m = layers.fully_connected(message, num_outputs=num_units, activation_fn=tf.nn.relu)
+        out = layers.fully_connected(h + m, num_outputs=num_units, activation_fn=tf.nn.relu)
+        out = layers.fully_connected(out, num_outputs=num_units, activation_fn=None)
+        action = layers.fully_connected(out, num_outputs=num_outputs, activation_fn=None)
+        z_mu = layers.fully_connected(out, num_outputs=dim_message, activation_fn=None)
+        z_log_sigma_sq = layers.fully_connected(out, num_outputs=dim_message, activation_fn=None)
+        eps = tf.random_normal(
+            shape=tf.shape(z_log_sigma_sq),
+            mean=0, stddev=1, dtype=tf.float32)
+        z = z_mu + tf.exp(0.5 * z_log_sigma_sq) * eps
+        return action, z, z_mu, z_log_sigma_sq
+
 def make_env(scenario_name, arglist, benchmark=False):
     from mpe.multiagent.environment import MultiAgentEnv
     import mpe.multiagent.scenarios as scenarios
@@ -72,6 +91,20 @@ def make_env(scenario_name, arglist, benchmark=False):
     else:
         env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation)
     return env
+
+def get_message_trainers(env, obs_shape_n, arglist):
+    trainers = []
+    model = mlp_model
+    trainer = IBMACInterAgentTrainer
+    obs_n = []
+    for i in range(0, 6):
+        obs_n.append([a[i] for a in obs_shape_n])
+
+    trainers.append(trainer(
+        "beta_trainer", inter_step, model, [obs_n[0][0]], [env.group_space_output[0]], arglist, local_q_func=(arglist.adv_policy == 'ddpg')))
+
+    return trainers
+
 
 def get_group_trainers(env, obs_shape_n, attention_shape_n, arglist):
     trainers = []
@@ -134,6 +167,7 @@ def train(arglist):
         num_adversaries = min(env.n, arglist.num_adversaries)
         trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
         group_trainers, attention_traniners = get_group_trainers(env, group_shape_n, attention_shape_n,arglist)
+        message_trainers = get_message_trainers(env, group_shape_n, arglist)
         print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
 
         # Initialize
@@ -187,8 +221,8 @@ def train(arglist):
                 group6 = []
                 group1.append([obs[0], obs[2], 0, 0, 0])
                 group2.append([obs[1], obs[3], 0, 0, 0])
-                group3.append([obs[14], obs[16], 0, 0 ,0])
-                group4.append([obs[15], obs[17], 0, 0, 0])
+                group3.append([obs[14], obs[16], obs[18], obs[20] ,0]) # obs[18], obs[20]
+                group4.append([obs[15], obs[17], obs[19], obs[21], 0]) # obs[19], obs[21]
                 group5.append([obs[4], obs[6], obs[8], obs[10], obs[12]])
                 group6.append([obs[5], obs[7], obs[9], obs[11], obs[13]])
 
@@ -229,30 +263,62 @@ def train(arglist):
                 old_attention = attention_input
 
             argmax = [np.argpartition(attention, -2)[-2:] for attention in attention_output]
+
+            argmax_input = copy.deepcopy(argmax) # for step
+
             pro = [attention[argmax[i]] for i, attention in enumerate(attention_output)]
             b1 = [p[0]/(p[0] + p[1]) for i, p in enumerate(pro)]
             b2 = [p[1] / (p[0] + p[1]) for i, p in enumerate(pro)]
 
-            attention_comm = []
-            attention_comm.append(group_output[argmax[0]])
-            attention_comm.append(group_output[argmax[1] + 6])
-            attention_comm.append(group_output[argmax[2] + 12])
+            beta1 = [1 / (b * 100) for b in b1]
+            beta2 = [1 / (b * 100) for b in b2]
+
+            beta_n = []
+
+            for b1, b2 in zip(beta1, beta2):
+                beta_n.append(b1)
+                beta_n.append(b2)
+
+            argmax[1] = argmax[1] + 6
+            argmax[2] = argmax[2] + 12
+
+            message_input = []
+
+            for index in argmax:
+                message_input.append(group_obs[index[0]])
+                message_input.append(group_obs[index[1]])
+
+            message_output = [message_trainers[0].action([message], np.zeros([1, 2]), beta) for message, beta in zip(message_input, beta_n)]
+
+            messages = []
+            for i in range(0, len(message_output)):
+                messages.append(message_output[i][1])
+
+            agent_message = [[], [], []]
+
+            for i, message in enumerate(messages):
+                if i < 2 :
+                    agent_message[0].extend(message[0][0])
+                elif i < 4 :
+                    agent_message[1].extend(message[0][0])
+                elif i < 6 :
+                    agent_message[2].extend(message[0][0])
 
             for i, agent in enumerate(env.agents) :
-                agent.state.c = attention_comm[i]
+                agent.state.c = agent_message[i]
 
             for i in range(0, len(obs_n)):
                 obs_n[i] = obs_n[i][:14]
-                for j in range(0, len(attention_comm)):
+                for j in range(0, len(agent_message)):
                     if j != i :
-                        obs_n[i] = np.append(obs_n[i], attention_comm[j])
+                        obs_n[i] = np.append(obs_n[i], agent_message[j])
 
             physical_action_n = [agent.action(obs) for agent, obs in zip(trainers, obs_n)]
             action_n = []
-            for phy, com in zip(physical_action_n, attention_comm) :
+            for phy, com in zip(physical_action_n, agent_message) :
                 action_n.append(np.concatenate((phy, com), axis=0))
             # environment step
-            new_obs_n, rew_n, done_n, info_n = env.step(action_n, argmax)
+            new_obs_n, rew_n, done_n, info_n = env.step(action_n, argmax_input)
             episode_step += 1
             done = all(done_n)
             terminal = (episode_step >= arglist.max_episode_len)
