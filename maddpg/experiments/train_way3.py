@@ -11,7 +11,7 @@ import copy
 import maddpg.maddpg.common.tf_util as U
 from maddpg.maddpg.trainer.maddpg import MADDPGAgentTrainer, GROUPAgentTrainer, AttentionAgentTrainer
 import matplotlib.pyplot as plt
-from maddpg.experiments.ibmac_inter import IBMACInterAgentTrainer
+from maddpg.experiments.ibmac import IBMACAgentTrainer
 
 
 def parse_args():
@@ -30,6 +30,9 @@ def parse_args():
     parser.add_argument("--num-units", type=int, default=64, help="number of units in the mlp")
     parser.add_argument("--dim-message", type=int, default=2, help="dimension of messages")
     parser.add_argument("--bw", type=int, default=1, help="bandwidth constraints")
+    parser.add_argument("--beta", type=int, default=0.05, help="beta for kl loss")
+    parser.add_argument("--ibmac_com", action="store_true", default=True)
+
     # Checkpointing
     parser.add_argument("--exp-name", type=str, default="b1b2used_bottleneck_spread_way2", help="name of the experiment")
     parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
@@ -61,6 +64,45 @@ def mlp_model_attention(input, num_outputs, scope, reuse=False, num_units=64, rn
         out = layers.fully_connected(out, num_outputs=num_units, activation_fn=tf.nn.relu)
         out = layers.fully_connected(out, num_outputs=num_outputs, activation_fn=tf.nn.softmax)
         return out
+def critic_mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=None):
+    # This model takes as input an observation and returns values of all actions
+    with tf.variable_scope(scope, reuse=reuse):
+        out = input
+        out = layers.fully_connected(out, num_outputs=num_units, activation_fn=tf.nn.relu)
+        out = layers.fully_connected(out, num_outputs=num_units, activation_fn=tf.nn.relu)
+        out = layers.fully_connected(out, num_outputs=num_outputs, activation_fn=None)
+        return out
+
+
+def before_com_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=None):
+    # This model takes as input an observation and returns values of all actions
+    with tf.variable_scope(scope, reuse=reuse):
+        out = input
+        out = layers.fully_connected(out, num_outputs=num_units, activation_fn=tf.nn.relu)
+        out = layers.fully_connected(out, num_outputs=num_outputs, activation_fn=tf.nn.relu)
+        return out
+
+
+def channel(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=None):
+    # This model takes as input an observation and returns values of all actions
+    with tf.variable_scope(scope, reuse=reuse):
+        out = input
+        z_mu = layers.fully_connected(out, num_outputs=num_units, activation_fn=None)
+        z_log_sigma_sq = layers.fully_connected(out, num_outputs=num_outputs, activation_fn=None)
+        eps = tf.random_normal(
+            shape=tf.shape(z_log_sigma_sq),
+            mean=0, stddev=1, dtype=tf.float32)
+        z = z_mu + tf.exp(0.5 * z_log_sigma_sq) * eps
+        return z, z_mu, z_log_sigma_sq
+
+
+def after_com_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=None):
+    # This model takes as input an observation and returns values of all actions
+    with tf.variable_scope(scope, reuse=reuse):
+        out = input
+        out = layers.fully_connected(out, num_outputs=num_outputs, activation_fn=None)
+        return out
+
 
 def inter_step(input, num_outputs, scope, reuse=False, num_units=64, dim_message=2, rnn_cell=None):
     with tf.variable_scope(scope, reuse=reuse):
@@ -96,13 +138,13 @@ def make_env(scenario_name, arglist, benchmark=False):
 def get_message_trainers(env, obs_shape_n, arglist):
     trainers = []
     model = mlp_model
-    trainer = IBMACInterAgentTrainer
+    trainer = IBMACAgentTrainer
     obs_n = []
     for i in range(0, 6):
         obs_n.append([a[i] for a in obs_shape_n])
 
     trainers.append(trainer(
-        "beta_trainer", inter_step, model, [obs_n[0][0]], [env.group_space_output[0]], arglist, local_q_func=(arglist.adv_policy == 'ddpg')))
+        "beta_trainer", before_com_model, channel, after_com_model, critic_mlp_model, [obs_n[0][0]], [env.group_space_output[0]], arglist, local_q_func=(arglist.adv_policy == 'ddpg')))
 
     return trainers
 
@@ -271,14 +313,14 @@ def train(arglist):
             b1 = [p[0]/(p[0] + p[1]) for i, p in enumerate(pro)]
             b2 = [p[1] / (p[0] + p[1]) for i, p in enumerate(pro)]
 
-            beta1 = [b * arglist.bw for b in b1]
-            beta2 = [b * arglist.bw for b in b2]
+            alpha1 = [b * arglist.bw for b in b1]
+            alpha2 = [b * arglist.bw for b in b2]
 
-            beta_n = []
+            alpha_n = []
 
-            for b1, b2 in zip(beta1, beta2):
-                beta_n.append(b1)
-                beta_n.append(b2)
+            for b1, b2 in zip(alpha1, alpha2):
+                alpha_n.append(b1)
+                alpha_n.append(b2)
 
             argmax[1] = argmax[1] + 6
             argmax[2] = argmax[2] + 12
@@ -289,21 +331,21 @@ def train(arglist):
                 message_input.append(group_obs[index[0]])
                 message_input.append(group_obs[index[1]])
 
-            message_output = [message_trainers[0].action([message], np.zeros([1, 2]), beta) for message, beta in zip(message_input, beta_n)]
+            message_output = [message_trainers[0].action([message], alpha) for message, alpha in zip(message_input, alpha_n)]
 
             messages = []
             for i in range(0, len(message_output)):
-                messages.append(message_output[i][1])
+                messages.append(message_output[i][0][0])
 
             agent_message = [[], [], []]
 
             for i, message in enumerate(messages):
                 if i < 2 :
-                    agent_message[0].extend(message[0][0])
+                    agent_message[0].extend(message)
                 elif i < 4 :
-                    agent_message[1].extend(message[0][0])
+                    agent_message[1].extend(message)
                 elif i < 6 :
-                    agent_message[2].extend(message[0][0])
+                    agent_message[2].extend(message)
 
             for i, agent in enumerate(env.agents) :
                 agent.state.c = agent_message[i]
