@@ -7,6 +7,8 @@ from maddpg.maddpg.common.distributions import make_pdtype
 from maddpg.maddpg import AgentTrainer
 from maddpg.maddpg.trainer.replay_buffer import ReplayBuffer
 
+##maddpg algorithm with kl loss
+
 
 def discount_with_dones(rewards, dones, gamma):
     discounted = []

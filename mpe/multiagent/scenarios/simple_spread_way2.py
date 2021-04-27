@@ -9,9 +9,9 @@ Agents are penalized if they collide with other agents.
 So, agents have to learn to cover its own target landmark while avoiding collisions.
 
 fully obs and fully comm
-use with train_way3 to find the correlation inside the 18 num of obs vector of agent 1
+use with train_way3 to find the correlation inside the 22 num of obs vector of agent 1
 
-
+comm cost added, bottleneck used in train way3
 
 """
 class Scenario(BaseScenario):

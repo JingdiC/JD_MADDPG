@@ -29,8 +29,9 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=150, help="number of episodes to optimize at the same time")
     parser.add_argument("--num-units", type=int, default=64, help="number of units in the mlp")
     parser.add_argument("--dim-message", type=int, default=2, help="dimension of messages")
+    parser.add_argument("--bw", type=int, default=1, help="bandwidth constraints")
     # Checkpointing
-    parser.add_argument("--exp-name", type=str, default="bottleneck_spread_way2_3000", help="name of the experiment")
+    parser.add_argument("--exp-name", type=str, default="b1b2used_bottleneck_spread_way2", help="name of the experiment")
     parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
     parser.add_argument("--save-rate", type=int, default=20, help="save model once every time this many episodes are completed")
     parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
@@ -270,8 +271,8 @@ def train(arglist):
             b1 = [p[0]/(p[0] + p[1]) for i, p in enumerate(pro)]
             b2 = [p[1] / (p[0] + p[1]) for i, p in enumerate(pro)]
 
-            beta1 = [1 / (b * 100) for b in b1]
-            beta2 = [1 / (b * 100) for b in b2]
+            beta1 = [b * arglist.bw for b in b1]
+            beta2 = [b * arglist.bw for b in b2]
 
             beta_n = []
 

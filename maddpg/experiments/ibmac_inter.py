@@ -214,14 +214,14 @@ class IBMACInterAgentTrainer(AgentTrainer):
             q_n = [q_func(q_input_n[i], 1, scope="q_func_{}".format(i), reuse=True, num_units=num_units)[:, 0] for i in
                    range(num_agents)]
             pg_loss_n = [-tf.reduce_mean(q) for q in q_n]
-
-            kl_loss_message_n = [0.5 * (tf.pow(mu, 2) + tf.pow(tf.exp(log), 2)) - log - 0.5 for mu, log in
+            ##bw=1 b1+b2 = 1
+            kl_loss_message_n = [1/2 * 1/(tf.pow(self.beta,2)) * (tf.pow(mu, 2) + tf.pow(tf.exp(log), 2)) - log - np.log(self.beta) - 0.5 for mu, log in
                                  zip(mu_message_n, logvar_message_n)]
             kl_loss_message = tf.reduce_mean(kl_loss_message_n)
 
             pg_loss = tf.reduce_sum(pg_loss_n)
             p_reg = tf.reduce_sum(p_reg_n)
-            loss = pg_loss + p_reg * 1e-3 + self.beta * kl_loss_message
+            loss = pg_loss + p_reg * 1e-3 + 0.05 * kl_loss_message
 
             var_list = []
             var_list.extend(p_func_vars)
