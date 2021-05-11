@@ -8,15 +8,19 @@ Agents are rewarded based on how far any agent is from its target landmark.
 Agents are penalized if they collide with other agents. 
 So, agents have to learn to cover its own target landmark while avoiding collisions.
 
-partial obs and partial communication
+fully obs and fully comm
+use with train_way3 to find the correlation inside the 22 num of obs vector of agent 1
+
+comm cost added, bottleneck used in train way3
+
 """
 class Scenario(BaseScenario):
     def make_world(self):
         world = World()
         # set any world properties first
-        world.dim_c = 2
-        num_agents = 3
-        num_landmarks = 3
+        world.dim_c = 4
+        num_agents = 6
+        num_landmarks = 6
         world.collaborative = True
         # add agents
         world.agents = [Agent() for i in range(num_agents)]
@@ -36,15 +40,13 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world(self, world):
-        # random properties for landmarks
-        world.landmarks[0].color = np.array([0.65,0.15,0.15])
-        world.landmarks[1].color = np.array([0.15,0.65,0.15])
-        world.landmarks[2].color = np.array([0.15,0.15,0.65])
-
         # random properties for agents
         for i, agent in enumerate(world.agents):
-            agent.color = np.array([0.25,0.25,0.25])
-
+            agent.color = np.array([0.35, 0.35, 0.85])
+        # random properties for landmarks
+        for i, landmark in enumerate(world.landmarks):
+            landmark.color = np.array([0.25, 0.25, 0.25])
+            
         # assign goals to agents
         for agent in world.agents:
             agent.goal = None
@@ -88,10 +90,13 @@ class Scenario(BaseScenario):
         dist_min = agent1.size + agent2.size
         return True if dist < dist_min else False
 
-    def reward(self, agent, world):
+    def reward(self, agent, world, i):
         # Agents are rewarded based on minimum agent distance to a target landmark, penalized for collisions
         # how to choose a target landmark
-        rew = 0
+
+        comm_cost = [0.2,0.2,0.3,0.3,0.5,0.5]
+        alpha = 0.05
+        rew = -alpha * (comm_cost[i[0]] + comm_cost[i[1]])
         dists = [np.sqrt(np.sum(np.square(a.state.p_pos - a.goal.state.p_pos))) for a in world.agents]
         rew -= min(dists)
         if agent.collide:

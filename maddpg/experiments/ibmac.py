@@ -21,8 +21,8 @@ def discount_with_dones(rewards, dones, gamma):
 
 def clip_message(message, clip_threshold, is_norm_training, is_inference):
 
-    gamma = tf.Variable(clip_threshold * tf.ones(message.shape[-1]), name='clip_gamma')
-    beta = tf.Variable(tf.zeros(message.shape[-1]), name='clip_beta')
+    gamma = tf.Variable(clip_threshold * tf.ones(message.shape[-1]), name='clip_gamma')  # bn scale
+    beta = tf.Variable(tf.zeros(message.shape[-1]), name='clip_beta')  # bn shift
 
     pop_mean = tf.Variable(tf.zeros(message.shape[-1]), trainable=False, name='pop_mean')
     pop_variance = tf.Variable(tf.ones(message.shape[-1]), trainable=False, name='pop_variance')

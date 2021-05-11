@@ -17,7 +17,7 @@ from maddpg.experiments.ibmac import IBMACAgentTrainer
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning experiments for multiagent environments")
     # Environment
-    parser.add_argument("--scenario", type=str, default="simple_spread_way2", help="name of the scenario script")
+    parser.add_argument("--scenario", type=str, default="simple_spread_6", help="name of the scenario script")
     parser.add_argument("--max-episode-len", type=int, default=25, help="maximum episode length")
     parser.add_argument("--num-episodes", type=int, default=10000, help="number of episodes")
     parser.add_argument("--num-adversaries", type=int, default=0, help="number of adversaries")
@@ -262,12 +262,12 @@ def train(arglist):
                 group4 = []
                 group5 = []
                 group6 = []
-                group1.append([obs[0], obs[2], 0, 0, 0])
-                group2.append([obs[1], obs[3], 0, 0, 0])
-                group3.append([obs[14], obs[16], obs[18], obs[20] ,0]) # obs[18], obs[20]
-                group4.append([obs[15], obs[17], obs[19], obs[21], 0]) # obs[19], obs[21]
-                group5.append([obs[4], obs[6], obs[8], obs[10], obs[12]])
-                group6.append([obs[5], obs[7], obs[9], obs[11], obs[13]])
+                group1.append([obs[0], obs[2], 0, 0, 0, 0, 0, 0, 0, 0, 0])
+                group2.append([obs[1], obs[3], 0, 0, 0, 0, 0, 0, 0, 0, 0])
+                group3.append([obs[22], obs[24], obs[26], obs[28], obs[30], obs[32], obs[34], obs[36], obs[38], obs[40], 0])
+                group4.append([obs[23], obs[25], obs[27], obs[29], obs[31], obs[33], obs[35], obs[37], obs[39], obs[41], 0])
+                group5.append([obs[4], obs[6], obs[8], obs[10], obs[12], obs[14], obs[16], obs[18], obs[20], obs[22], obs[24]])
+                group6.append([obs[5], obs[7], obs[9], obs[11], obs[13], obs[15], obs[17], obs[19], obs[21], obs[23], obs[25]])
 
 
                 group_obs.append(np.squeeze(np.asarray(group1)))
@@ -278,26 +278,21 @@ def train(arglist):
                 group_obs.append(np.squeeze(np.asarray(group6)))
 
             group_output = [agent.action(obs) for agent, obs in zip(group_trainers, group_obs)]
-            g1 = []
-            g2 = []
-            g3 = []
+
+            gg = []
+            for i in range(0, env.n):
+                gg.append([])
+
             attention_input = []
+
             for i in range(0, len(group_output)):
-                if i < 6 :
-                    g1.extend(group_output[i])
-                elif i < 12 :
-                    g2.extend(group_output[i])
-                elif i < 18 :
-                    g3.extend(group_output[i])
+                ind = i % 6
+                gg[ind].extend(group_output[i])
 
-            g1Save.append(np.squeeze(np.asarray(g1)))
-            g2Save.append(np.squeeze(np.asarray(g2)))
-            g3Save.append(np.squeeze(np.asarray(g3)))
-
-            attention_input.append(np.squeeze(np.asarray(g1)))
-            attention_input.append(np.squeeze(np.asarray(g2)))
-            attention_input.append(np.squeeze(np.asarray(g3)))
-
+            ggSave = []
+            for i in range(0, env.n):
+                ggSave.append(np.squeeze(np.asarray(gg[i])))
+                attention_input.append(np.squeeze(np.asarray(gg[i])))
 
             attention_output = [agent.action(obs) for agent, obs in zip(attention_traniners, attention_input)]
 
@@ -337,7 +332,10 @@ def train(arglist):
             for i in range(0, len(message_output)):
                 messages.append(message_output[i][0][0])
 
-            agent_message = [[], [], []]
+            agent_message = []
+
+            for i in range(0, env.n):
+                agent_message.append([])
 
             for i, message in enumerate(messages):
                 if i < 2 :
