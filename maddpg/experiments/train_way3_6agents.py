@@ -264,8 +264,8 @@ def train(arglist):
                 group6 = []
                 group1.append([obs[0], obs[2], 0, 0, 0, 0, 0, 0, 0, 0, 0])
                 group2.append([obs[1], obs[3], 0, 0, 0, 0, 0, 0, 0, 0, 0])
-                group3.append([obs[22], obs[24], obs[26], obs[28], obs[30], obs[32], obs[34], obs[36], obs[38], obs[40], 0])
-                group4.append([obs[23], obs[25], obs[27], obs[29], obs[31], obs[33], obs[35], obs[37], obs[39], obs[41], 0])
+                group3.append([obs[42], obs[44], obs[26], obs[28], obs[30], obs[32], obs[34], obs[36], obs[38], obs[40], 0])
+                group4.append([obs[43], obs[45], obs[27], obs[29], obs[31], obs[33], obs[35], obs[37], obs[39], obs[41], 0])
                 group5.append([obs[4], obs[6], obs[8], obs[10], obs[12], obs[14], obs[16], obs[18], obs[20], obs[22], obs[24]])
                 group6.append([obs[5], obs[7], obs[9], obs[11], obs[13], obs[15], obs[17], obs[19], obs[21], obs[23], obs[25]])
 
@@ -286,7 +286,7 @@ def train(arglist):
             attention_input = []
 
             for i in range(0, len(group_output)):
-                ind = i % 6
+                ind =int(i / 6)
                 gg[ind].extend(group_output[i])
 
             ggSave = []
@@ -338,18 +338,14 @@ def train(arglist):
                 agent_message.append([])
 
             for i, message in enumerate(messages):
-                if i < 2 :
-                    agent_message[0].extend(message)
-                elif i < 4 :
-                    agent_message[1].extend(message)
-                elif i < 6 :
-                    agent_message[2].extend(message)
+                ind = int(i / 2)
+                agent_message[ind].extend(message)
 
             for i, agent in enumerate(env.agents) :
                 agent.state.c = agent_message[i]
 
             for i in range(0, len(obs_n)):
-                obs_n[i] = obs_n[i][:14]
+                obs_n[i] = obs_n[i][:26]
                 for j in range(0, len(agent_message)):
                     if j != i :
                         obs_n[i] = np.append(obs_n[i], agent_message[j])
@@ -369,12 +365,8 @@ def train(arglist):
             for i, agent in enumerate(attention_traniners):
                 agent.experience(attention_input[i], attention_output[i], rew_n[i], old_attention[i], done_n[i], terminal)
             for i, agent in enumerate(group_trainers):
-                if i < 6:
-                    agent.experience(group_obs[i], group_output[i], rew_n[0], old_group[i], done_n[0], terminal)
-                elif i < 12:
-                    agent.experience(group_obs[i], group_output[i], rew_n[1], old_group[i], done_n[1], terminal)
-                elif i < 18:
-                    agent.experience(group_obs[i], group_output[i], rew_n[2], old_group[i], done_n[2], terminal)
+                ind = int(i/6)
+                agent.experience(group_obs[i], group_output[i], rew_n[ind], old_group[i], done_n[ind], terminal)
 
 
             old_attention = attention_input
