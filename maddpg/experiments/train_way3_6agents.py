@@ -19,7 +19,7 @@ def parse_args():
     # Environment
     parser.add_argument("--scenario", type=str, default="simple_spread_6", help="name of the scenario script")
     parser.add_argument("--max-episode-len", type=int, default=25, help="maximum episode length")
-    parser.add_argument("--num-episodes", type=int, default=10000, help="number of episodes")
+    parser.add_argument("--num-episodes", type=int, default=3000, help="number of episodes")
     parser.add_argument("--num-adversaries", type=int, default=0, help="number of adversaries")
     parser.add_argument("--good-policy", type=str, default="maddpg", help="policy for good agents")
     parser.add_argument("--adv-policy", type=str, default="maddpg", help="policy of adversaries")
@@ -43,8 +43,8 @@ def parse_args():
     parser.add_argument("--display", action="store_true", default=False)
     parser.add_argument("--benchmark", action="store_true", default=False)
     parser.add_argument("--benchmark-iters", type=int, default=100000, help="number of iterations run for benchmarking")
-    parser.add_argument("--benchmark-dir", type=str, default="/Users/chenjingdi/Desktop/code/Jingdi-MADDPG/maddpg/benchmark_files/", help="directory where benchmark data is saved")
-    parser.add_argument("--plots-dir", type=str, default="/Users/chenjingdi/Desktop/code/Jingdi-MADDPG/maddpg/learning_curves/", help="directory where plot data is saved")
+    parser.add_argument("--benchmark-dir", type=str, default="/Users/Chris/JD_MADDPG/maddpg/benchmark_files/", help="directory where benchmark data is saved")
+    parser.add_argument("--plots-dir", type=str, default="/Users/Chris/JD_MADDPG/maddpg/learning_curves/", help="directory where plot data is saved")
     return parser.parse_args()
 
 def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=None):
@@ -262,10 +262,10 @@ def train(arglist):
                 group4 = []
                 group5 = []
                 group6 = []
-                group1.append([obs[0], obs[2], 0, 0, 0, 0, 0, 0, 0, 0, 0])
-                group2.append([obs[1], obs[3], 0, 0, 0, 0, 0, 0, 0, 0, 0])
-                group3.append([obs[42], obs[44], obs[26], obs[28], obs[30], obs[32], obs[34], obs[36], obs[38], obs[40], 0])
-                group4.append([obs[43], obs[45], obs[27], obs[29], obs[31], obs[33], obs[35], obs[37], obs[39], obs[41], 0])
+                group1.append([obs[0], obs[2], obs[0], obs[2], obs[0], obs[2] , obs[0], obs[2], obs[0], obs[2], obs[0]])
+                group2.append([obs[1], obs[3], obs[1], obs[3], obs[1], obs[3], obs[1], obs[3], obs[1], obs[3], obs[1]])
+                group3.append([obs[42], obs[44], obs[26], obs[28], obs[30], obs[32], obs[34], obs[36], obs[38], obs[40], obs[26]])
+                group4.append([obs[43], obs[45], obs[27], obs[29], obs[31], obs[33], obs[35], obs[37], obs[39], obs[41], obs[27]])
                 group5.append([obs[4], obs[6], obs[8], obs[10], obs[12], obs[14], obs[16], obs[18], obs[20], obs[22], obs[24]])
                 group6.append([obs[5], obs[7], obs[9], obs[11], obs[13], obs[15], obs[17], obs[19], obs[21], obs[23], obs[25]])
 

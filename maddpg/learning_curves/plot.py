@@ -5,13 +5,18 @@ import matplotlib.pyplot as plt
 
 
 
+bottleneck = pd.read_csv("/Users/Chris/JD_MADDPG/maddpg/learning_curves/b1b2used_bottleneck_spread_way2_3000_rewards.csv")
+SARNET = pd.read_csv("/Users/Chris/JD_MADDPG/maddpg/learning_curves/SAR_CN3_rewards.csv")
+TARMAC = pd.read_csv("/Users/Chris/JD_MADDPG/maddpg/learning_curves/TAR_CN3_rewards.csv")
+COMMNET = pd.read_csv("/Users/Chris/JD_MADDPG/maddpg/learning_curves/COMM_CN3_rewards.csv")
 
-full = (pd.read_csv("/Users/chenjingdi/Desktop/code/Jingdi-MADDPG/maddpg/learning_curves/full_ob_full_comm_3000_rewards.csv")).to_numpy().flatten().tolist()
-comm = pd.read_csv("/Users/chenjingdi/Desktop/code/Jingdi-MADDPG/maddpg/learning_curves/Jingdi_3000_rewards.csv")
 
 
-plt.plot(full, label = "full_ob_full_comm")
-plt.plot(comm, label = "po_limited comm")
+plt.plot(bottleneck, label = "jingdi" )
+plt.plot(SARNET, label = "SARNET")
+plt.plot(TARMAC, label = "TARMAC")
+plt.plot(COMMNET, label = "COMMNET")
+
 plt.xticks(fontsize=10)
 plt.yticks(fontsize=10)
 plt.title("Total Reward Comparison",fontsize=11)
