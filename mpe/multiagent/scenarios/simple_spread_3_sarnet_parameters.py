@@ -3,15 +3,10 @@ from mpe.multiagent.core import World, Agent, Landmark
 from mpe.multiagent.scenario import BaseScenario
 
 """
-N agents, N landmarks. 
-Agents are rewarded based on how far any agent is from its target landmark. 
-Agents are penalized if they collide with other agents. 
-So, agents have to learn to cover its own target landmark while avoiding collisions.
+copy from simple spread way2
 
-fully obs and fully comm
-use with train_way3 to find the correlation inside the 22 num of obs vector of agent 1
+want to use parameters from sarnet to get -100 rewards range
 
-comm cost added, bottleneck used in train way3 6agents
 
 """
 class Scenario(BaseScenario):
@@ -19,9 +14,9 @@ class Scenario(BaseScenario):
         world = World()
         # set any world properties first
         world.dim_c = 4
-        num_agents = 6
-        num_landmarks = 6
-        world.collaborative = False
+        num_agents = 3
+        num_landmarks = 3
+        world.collaborative = True
         # add agents
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
@@ -40,13 +35,15 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world(self, world):
+        # random properties for landmarks
+        world.landmarks[0].color = np.array([0.65,0.15,0.15])
+        world.landmarks[1].color = np.array([0.15,0.65,0.15])
+        world.landmarks[2].color = np.array([0.15,0.15,0.65])
+
         # random properties for agents
         for i, agent in enumerate(world.agents):
-            agent.color = np.array([0.35, 0.35, 0.85])
-        # random properties for landmarks
-        for i, landmark in enumerate(world.landmarks):
-            landmark.color = np.array([0.25, 0.25, 0.25])
-            
+            agent.color = np.array([0.25,0.25,0.25])
+
         # assign goals to agents
         for agent in world.agents:
             agent.goal = None

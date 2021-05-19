@@ -57,7 +57,6 @@ class MultiAgentEnv(gym.Env):
                 u_action_space = spaces.Box(low=-agent.u_range, high=+agent.u_range, shape=(world.dim_p,), dtype=np.float32)
             if agent.movable:
                 total_physical_action_space.append(u_action_space)
-
             # communication action space
             if self.discrete_action_space:
                 c_action_space = spaces.Discrete(world.dim_c)
@@ -66,7 +65,6 @@ class MultiAgentEnv(gym.Env):
             if not agent.silent:
                 total_comm_action_space.append(c_action_space)
             # total physical action space
-
             if len(total_physical_action_space) > 0 and len(total_comm_action_space) > 0:
                 # all action spaces are discrete, so simplify to MultiDiscrete action space
                 if all([isinstance(act_space, spaces.Discrete) for act_space in total_physical_action_space]):
@@ -87,14 +85,12 @@ class MultiAgentEnv(gym.Env):
                 self.comm_action_space.append(act_space)
             else:
                 self.comm_action_space.append(total_comm_action_space[0])
-
             # observation space
             obs_dim = len(observation_callback(agent, self.world))
             self.observation_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(obs_dim,), dtype=np.float32))
 
-            #change
             for i in range(0, 6):
-                total_group_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(11,), dtype=np.float32))
+                total_group_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(5,), dtype=np.float32))
 
             self.group_space_input.append(total_group_space)
 

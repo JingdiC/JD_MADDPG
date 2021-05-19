@@ -19,7 +19,7 @@ def parse_args():
     # Environment
     parser.add_argument("--scenario", type=str, default="simple_spread_way2", help="name of the scenario script")
     parser.add_argument("--max-episode-len", type=int, default=25, help="maximum episode length")
-    parser.add_argument("--num-episodes", type=int, default=10000, help="number of episodes")
+    parser.add_argument("--num-episodes", type=int, default=600, help="number of episodes")
     parser.add_argument("--num-adversaries", type=int, default=0, help="number of adversaries")
     parser.add_argument("--good-policy", type=str, default="maddpg", help="policy for good agents")
     parser.add_argument("--adv-policy", type=str, default="maddpg", help="policy of adversaries")
@@ -34,17 +34,17 @@ def parse_args():
     parser.add_argument("--ibmac_com", action="store_true", default=True)
 
     # Checkpointing
-    parser.add_argument("--exp-name", type=str, default="b1b2used_bottleneck_spread_way2", help="name of the experiment")
+    parser.add_argument("--exp-name", type=str, default="jingdi_bw1_spread_3", help="name of the experiment")
     parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
-    parser.add_argument("--save-rate", type=int, default=20, help="save model once every time this many episodes are completed")
+    parser.add_argument("--save-rate", type=int, default=4, help="save model once every time this many episodes are completed")
     parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
     # Evaluation
     parser.add_argument("--restore", action="store_true", default=False)
     parser.add_argument("--display", action="store_true", default=False)
     parser.add_argument("--benchmark", action="store_true", default=False)
     parser.add_argument("--benchmark-iters", type=int, default=100000, help="number of iterations run for benchmarking")
-    parser.add_argument("--benchmark-dir", type=str, default="/Users/chenjingdi/Desktop/code/Jingdi-MADDPG/maddpg/benchmark_files/", help="directory where benchmark data is saved")
-    parser.add_argument("--plots-dir", type=str, default="/Users/chenjingdi/Desktop/code/Jingdi-MADDPG/maddpg/learning_curves/", help="directory where plot data is saved")
+    parser.add_argument("--benchmark-dir", type=str, default="/Users/Chris/JD_MADDPG/maddpg/benchmark_files/", help="directory where benchmark data is saved")
+    parser.add_argument("--plots-dir", type=str, default="/Users/Chris/JD_MADDPG/maddpg/learning_curves/", help="directory where plot data is saved")
     return parser.parse_args()
 
 def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=None):
@@ -278,39 +278,33 @@ def train(arglist):
                 group_obs.append(np.squeeze(np.asarray(group6)))
 
             group_output = [agent.action(obs) for agent, obs in zip(group_trainers, group_obs)]
-            g1 = []
-            g2 = []
-            g3 = []
+            gg = []
+            for i in range(0, env.n):
+                gg.append([])
+
             attention_input = []
+
             for i in range(0, len(group_output)):
-                if i < 6 :
-                    g1.extend(group_output[i])
-                elif i < 12 :
-                    g2.extend(group_output[i])
-                elif i < 18 :
-                    g3.extend(group_output[i])
+                ind = int(i / 6)
+                gg[ind].extend(group_output[i])
 
-            g1Save.append(np.squeeze(np.asarray(g1)))
-            g2Save.append(np.squeeze(np.asarray(g2)))
-            g3Save.append(np.squeeze(np.asarray(g3)))
-
-            attention_input.append(np.squeeze(np.asarray(g1)))
-            attention_input.append(np.squeeze(np.asarray(g2)))
-            attention_input.append(np.squeeze(np.asarray(g3)))
-
+            ggSave = []
+            for i in range(0, env.n):
+                ggSave.append(np.squeeze(np.asarray(gg[i])))
+                attention_input.append(np.squeeze(np.asarray(gg[i])))
 
             attention_output = [agent.action(obs) for agent, obs in zip(attention_traniners, attention_input)]
 
-            if train_step == 0 :
+            if train_step == 0:
                 old_group = group_obs
                 old_attention = attention_input
 
             argmax = [np.argpartition(attention, -2)[-2:] for attention in attention_output]
 
-            argmax_input = copy.deepcopy(argmax) # for step
+            argmax_input = copy.deepcopy(argmax)  # for step
 
             pro = [attention[argmax[i]] for i, attention in enumerate(attention_output)]
-            b1 = [p[0]/(p[0] + p[1]) for i, p in enumerate(pro)]
+            b1 = [p[0] / (p[0] + p[1]) for i, p in enumerate(pro)]
             b2 = [p[1] / (p[0] + p[1]) for i, p in enumerate(pro)]
 
             alpha1 = [b * arglist.bw for b in b1]
@@ -331,34 +325,34 @@ def train(arglist):
                 message_input.append(group_obs[index[0]])
                 message_input.append(group_obs[index[1]])
 
-            message_output = [message_trainers[0].action([message], alpha) for message, alpha in zip(message_input, alpha_n)]
+            message_output = [message_trainers[0].action([message], alpha) for message, alpha in
+                              zip(message_input, alpha_n)]
 
             messages = []
             for i in range(0, len(message_output)):
                 messages.append(message_output[i][0][0])
 
-            agent_message = [[], [], []]
+            agent_message = []
+
+            for i in range(0, env.n):
+                agent_message.append([])
 
             for i, message in enumerate(messages):
-                if i < 2 :
-                    agent_message[0].extend(message)
-                elif i < 4 :
-                    agent_message[1].extend(message)
-                elif i < 6 :
-                    agent_message[2].extend(message)
+                ind = int(i / 2)
+                agent_message[ind].extend(message)
 
-            for i, agent in enumerate(env.agents) :
+            for i, agent in enumerate(env.agents):
                 agent.state.c = agent_message[i]
 
             for i in range(0, len(obs_n)):
                 obs_n[i] = obs_n[i][:14]
                 for j in range(0, len(agent_message)):
-                    if j != i :
+                    if j != i:
                         obs_n[i] = np.append(obs_n[i], agent_message[j])
 
             physical_action_n = [agent.action(obs) for agent, obs in zip(trainers, obs_n)]
             action_n = []
-            for phy, com in zip(physical_action_n, agent_message) :
+            for phy, com in zip(physical_action_n, agent_message):
                 action_n.append(np.concatenate((phy, com), axis=0))
             # environment step
             new_obs_n, rew_n, done_n, info_n = env.step(action_n, argmax_input)
@@ -369,14 +363,11 @@ def train(arglist):
             for i, agent in enumerate(trainers):
                 agent.experience(obs_n[i], physical_action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
             for i, agent in enumerate(attention_traniners):
-                agent.experience(attention_input[i], attention_output[i], rew_n[i], old_attention[i], done_n[i], terminal)
+                agent.experience(attention_input[i], attention_output[i], rew_n[i], old_attention[i], done_n[i],
+                                 terminal)
             for i, agent in enumerate(group_trainers):
-                if i < 6:
-                    agent.experience(group_obs[i], group_output[i], rew_n[0], old_group[i], done_n[0], terminal)
-                elif i < 12:
-                    agent.experience(group_obs[i], group_output[i], rew_n[1], old_group[i], done_n[1], terminal)
-                elif i < 18:
-                    agent.experience(group_obs[i], group_output[i], rew_n[2], old_group[i], done_n[2], terminal)
+                ind = int(i / 6)
+                agent.experience(group_obs[i], group_output[i], rew_n[ind], old_group[i], done_n[ind], terminal)
 
 
             old_attention = attention_input
