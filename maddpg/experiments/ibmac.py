@@ -3,9 +3,9 @@ import random
 import tensorflow as tf
 import maddpg.maddpg.common.tf_util as U
 
-from maddpg.maddpg.common.distributions import make_pdtype
-from maddpg.maddpg import AgentTrainer
-from maddpg.maddpg.trainer.replay_buffer import ReplayBuffer
+from maddpg.common.distributions import make_pdtype
+from maddpg import AgentTrainer
+from maddpg.trainer.replay_buffer import ReplayBuffer
 
 import itertools
 
