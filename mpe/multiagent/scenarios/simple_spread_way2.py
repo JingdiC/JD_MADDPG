@@ -1,6 +1,6 @@
 import numpy as np
-from mpe.multiagent.core import World, Agent, Landmark
-from mpe.multiagent.scenario import BaseScenario
+from multiagent.core import World, Agent, Landmark
+from multiagent.scenario import BaseScenario
 
 """
 N agents, N landmarks. 
