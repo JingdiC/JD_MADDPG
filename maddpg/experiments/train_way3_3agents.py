@@ -121,8 +121,8 @@ def inter_step(input, num_outputs, scope, reuse=False, num_units=64, dim_message
         return action, z, z_mu, z_log_sigma_sq
 
 def make_env(scenario_name, arglist, benchmark=False):
-    from mpe.multiagent.environment import MultiAgentEnv
-    import mpe.multiagent.scenarios as scenarios
+    from multiagent.environment import MultiAgentEnv
+    import multiagent.scenarios as scenarios
 
     # load scenario from script
     scenario = scenarios.load(scenario_name + ".py").Scenario()
