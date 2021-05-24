@@ -19,7 +19,7 @@ def parse_args():
     # Environment
     parser.add_argument("--scenario", type=str, default="simple_spread_way2", help="name of the scenario script")
     parser.add_argument("--max-episode-len", type=int, default=25, help="maximum episode length")
-    parser.add_argument("--num-episodes", type=int, default=300, help="number of episodes")
+    parser.add_argument("--num-episodes", type=int, default=50, help="number of episodes")
     parser.add_argument("--num-adversaries", type=int, default=0, help="number of adversaries")
     parser.add_argument("--good-policy", type=str, default="maddpg", help="policy for good agents")
     parser.add_argument("--adv-policy", type=str, default="maddpg", help="policy of adversaries")
@@ -34,7 +34,7 @@ def parse_args():
     parser.add_argument("--ibmac_com", action="store_true", default=True)
 
     # Checkpointing
-    parser.add_argument("--exp-name", type=str, default="jingdi_bw1clp1_spread_3_servertest", help="name of the experiment")
+    parser.add_argument("--exp-name", type=str, default="test2_jingdi_bw1clp1_spread_3", help="name of the experiment")
     parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
     parser.add_argument("--save-rate", type=int, default=10, help="save model once every time this many episodes are completed")
     parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
@@ -455,17 +455,17 @@ def train(arglist):
                 rew_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_rewards.csv'
                 csv1 = pd.DataFrame(final_ep_rewards).to_csv(rew_file_name, index=False)
 
-                agrew_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_agrewards.csv'
-                csv2 = pd.DataFrame(final_ep_ag_rewards).to_csv(agrew_file_name, index=False)
+                #agrew_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_agrewards.csv'
+                #csv2 = pd.DataFrame(final_ep_ag_rewards).to_csv(agrew_file_name, index=False)
 
-                g1Save_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_g1Save.csv'
-                csv3 = pd.DataFrame(g1Save).to_csv(g1Save_file_name, index=False)
+                #g1Save_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_g1Save.csv'
+                #csv3 = pd.DataFrame(g1Save).to_csv(g1Save_file_name, index=False)
 
-                g2Save_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_g2Save.csv'
-                csv4 = pd.DataFrame(g2Save).to_csv(g2Save_file_name, index=False)
+                #g2Save_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_g2Save.csv'
+                #csv4 = pd.DataFrame(g2Save).to_csv(g2Save_file_name, index=False)
 
-                g3Save_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_g3Save.csv'
-                csv5 = pd.DataFrame(g3Save).to_csv(g3Save_file_name, index=False)
+                #g3Save_file_name = arglist.plots_dir + arglist.exp_name + "_" + str(arglist.num_episodes) + '_g3Save.csv'
+                #csv5 = pd.DataFrame(g3Save).to_csv(g3Save_file_name, index=False)
 
 
               #  entireObs = []
@@ -487,16 +487,16 @@ def train(arglist):
 if __name__ == '__main__':
     arglist = parse_args()
     final_ep_rewards, final_ep_ag_rewards, final_ep_ag_rewards_0, final_ep_ag_rewards_1, final_ep_ag_rewards_2 = train(arglist)
-    plt.plot(final_ep_rewards, label = "final_ep_rewards")
+#    plt.plot(final_ep_rewards, label = "final_ep_rewards")
 #    plt.plot(final_ep_ag_rewards, label="final_ep_ag_rewards")
 #    plt.plot(final_ep_ag_rewards_0, label = "final_ep_ag_rewards_0")
 #    plt.plot(final_ep_ag_rewards_1, label="final_ep_ag_rewards_1")
 #    plt.plot(final_ep_ag_rewards_2, label="final_ep_ag_rewards_2")
 #    plt.legend(loc='lower right', fontsize=15)
-    plt.xlabel('Episode', fontsize=15)
-    plt.ylabel('Average Reward after every 20 Episode finished', fontsize=15)
-    plt.grid(True)
+#    plt.xlabel('Episode', fontsize=15)
+#    plt.ylabel('Average Reward after every 20 Episode finished', fontsize=15)
+#    plt.grid(True)
 
-    plt.show()
+#    plt.show()
 
 
