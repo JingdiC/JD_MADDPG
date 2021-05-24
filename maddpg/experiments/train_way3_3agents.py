@@ -18,8 +18,8 @@ def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning experiments for multiagent environments")
     # Environment
     parser.add_argument("--scenario", type=str, default="simple_spread_way2", help="name of the scenario script")
-    parser.add_argument("--max-episode-len", type=int, default=25, help="maximum episode length")
-    parser.add_argument("--num-episodes", type=int, default=50, help="number of episodes")
+    parser.add_argument("--max-episode-len", type=int, default=8000, help="maximum episode length")
+    parser.add_argument("--num-episodes", type=int, default=30000, help="number of episodes")
     parser.add_argument("--num-adversaries", type=int, default=0, help="number of adversaries")
     parser.add_argument("--good-policy", type=str, default="maddpg", help="policy for good agents")
     parser.add_argument("--adv-policy", type=str, default="maddpg", help="policy of adversaries")
@@ -34,7 +34,7 @@ def parse_args():
     parser.add_argument("--ibmac_com", action="store_true", default=True)
 
     # Checkpointing
-    parser.add_argument("--exp-name", type=str, default="test2_jingdi_bw1clp1_spread_3", help="name of the experiment")
+    parser.add_argument("--exp-name", type=str, default="trainlong_jingdi_bw1clp1_spread_3", help="name of the experiment")
     parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
     parser.add_argument("--save-rate", type=int, default=10, help="save model once every time this many episodes are completed")
     parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
